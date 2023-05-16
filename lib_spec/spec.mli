@@ -20,6 +20,7 @@ type user = [
 ] [@@deriving sexp]
 
 type run = {
+  rom : Rom.t list;
   cache : Cache.t list;
   network : string list;
   secrets : Secret.t list;
@@ -47,7 +48,7 @@ val stage : ?child_builds:(string * t) list -> from:string -> op list -> t
 val comment : ('a, unit, string, op) format4 -> 'a
 val workdir : string -> op
 val shell : string list -> op
-val run : ?cache:Cache.t list -> ?network:string list -> ?secrets:Secret.t list -> ('a, unit, string, op) format4 -> 'a
+val run : ?rom:Rom.t list -> ?cache:Cache.t list -> ?network:string list -> ?secrets:Secret.t list -> ('a, unit, string, op) format4 -> 'a
 val copy : ?from:[`Context | `Build of string] -> ?exclude:string list -> string list -> dst:string -> op
 val env : string -> string -> op
 val user_unix : uid:int -> gid:int -> op

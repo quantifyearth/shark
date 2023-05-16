@@ -42,7 +42,7 @@ let pp_mount_secret ~ctx f { Secret.id; target; buildkit_options } =
   in
   Fmt.pf f "%a" Fmt.(list ~sep:(any ",") pp_pair) buildkit_options
 
-let pp_run ~escape ~ctx f { Spec.cache; shell; secrets; network = _ } =
+let pp_run ~escape ~ctx f { Spec.cache; shell; secrets; network = _; rom = _ } =
   Fmt.pf f "RUN %a%a%a"
     Fmt.(list (pp_mount_secret ~ctx ++ const string " ")) secrets
     Fmt.(list (pp_cache ~ctx ++ const string " ")) cache

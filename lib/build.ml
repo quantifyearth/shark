@@ -65,7 +65,7 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
     mount_secrets : Config.Secret.t list;
   } [@@deriving sexp_of]
 
-  let run t ~switch ~log ~cache run_input =
+  let run t ~switch ~log ~cache ~(rom:Obuilder_spec.Rom.t list) run_input =
     let id =
       sexp_of_run_input run_input
       |> Sexplib.Sexp.to_string_mach
@@ -83,7 +83,16 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
                  { Config.Mount.src; dst = target; readonly = false }
                )
              >>= fun mounts ->
+             Lwt_list.map_p (fun v ->
+               match v.Obuilder_spec.Rom.kind with
+               | `Build (hash, dir) ->
+                   Store.result t.store hash >|= fun path ->
+                   let path = Option.get path in
+                   let src = path / "rootfs" / dir in
+                   { Config.Mount.src; dst = v.target; readonly = true }
+             ) rom >>= fun rom_mounts ->
              let argv = shell @ [cmd] in
+             let mounts = mounts @ rom_mounts in
              let config = Config.v ~cwd:workdir ~argv ~hostname ~user ~env ~mounts ~mount_secrets ~network () in
              Os.with_pipe_to_child @@ fun ~r:stdin ~w:close_me ->
              Lwt_unix.close close_me >>= fun () ->
@@ -206,14 +215,14 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
       | `Comment _ -> k ~base ~context
       | `Workdir workdir -> k ~base ~context:(update_workdir ~context workdir)
       | `User user -> k ~base ~context:{context with user}
-      | `Run { shell = cmd; cache; network; secrets = mount_secrets } ->
+      | `Run { shell = cmd; cache; network; secrets = mount_secrets; rom } ->
         let result =
           let { Context.switch; workdir; user; env; shell; log; src_dir = _; scope = _; secrets } = context in
           resolve_secrets secrets mount_secrets |> Result.map @@ fun mount_secrets ->
           (switch, { base; workdir; user; env; cmd; shell; network; mount_secrets }, log)
         in
         Lwt.return result >>!= fun (switch, run_input, log) ->
-        run t ~switch ~log ~cache run_input >>!= fun base ->
+        run t ~switch ~log ~cache ~rom run_input >>!= fun base ->
         k ~base ~context
       | `Copy x ->
         copy t ~context ~base x >>!= fun base ->

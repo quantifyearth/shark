@@ -86,6 +86,7 @@ let sexp_of_user x : Sexplib.Sexp.t =
   | x -> Fmt.failwith "Invalid op: %a" Sexplib.Sexp.pp_hum x
 
 type run = {
+  rom : Rom.t list [@sexp.list];
   cache : Cache.t list [@sexp.list];
   network : string list [@sexp.list];
   secrets : Secret.t list [@sexp.list];
@@ -172,7 +173,7 @@ let rec t_of_sexp = function
 let comment fmt = fmt |> Printf.ksprintf (fun c -> `Comment c)
 let workdir x = `Workdir x
 let shell xs = `Shell xs
-let run ?(cache=[]) ?(network=[]) ?(secrets=[]) fmt = fmt |> Printf.ksprintf (fun x -> `Run { shell = x; cache; network; secrets })
+let run ?(rom=[]) ?(cache=[]) ?(network=[]) ?(secrets=[]) fmt = fmt |> Printf.ksprintf (fun x -> `Run { shell = x; cache; network; secrets; rom })
 let copy ?(from=`Context) ?(exclude=[]) src ~dst = `Copy { from; src; dst; exclude }
 let env k v = `Env (k, v)
 let user_unix ~uid ~gid = `User (`Unix { uid; gid })
