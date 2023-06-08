@@ -123,10 +123,12 @@ module Json_config = struct
     let namespaces = network_ns @ ["pid"; "ipc"; "uts"; "mount"] in
     `Assoc [
       "ociVersion", `String "1.0.1-dev";
-      "process", `Assoc [
-        "terminal", `Bool false;
+      "process", `Assoc (
+        (match argv with 
+        | `Run r -> [ "terminal", `Bool false; "args", strings r ]
+        | `Terminal -> [ "terminal", `Bool true; "args", strings [ "/bin/bash" ] ])  
+      @ [
         "user", user;
-        "args", strings argv;
         "env", strings (List.map (fun (k, v)  -> Printf.sprintf "%s=%s" k v) env);
         "cwd", `String cwd;
         "capabilities", `Assoc [
@@ -143,7 +145,7 @@ module Json_config = struct
           ];
         ];
         "noNewPrivileges", `Bool false;
-      ];
+      ]);
       "root", `Assoc [
         "path", `String (results_dir / "rootfs");
         "readonly", `Bool false;
@@ -295,7 +297,11 @@ let run ~cancelled ?stdin:stdin ~log t config results_dir =
   let copy_log = Build_log.copy ~src:out_r ~dst:log in
   let proc =
     let stdin = Option.map (fun x -> `FD_move_safely x) stdin in
-    let pp f = Os.pp_cmd f ("", config.argv) in
+    let pp f = 
+      match config.argv with
+      | `Run argv -> Os.pp_cmd f ("", argv) 
+      | `Terminal -> Os.pp_cmd f ("", ["terminal"])
+    in
     Os.sudo_result ~cwd:tmp ?stdin ~stdout ~stderr ~pp cmd
   in
   Lwt.on_termination cancelled (fun () ->
@@ -315,6 +321,55 @@ let run ~cancelled ?stdin:stdin ~log t config results_dir =
   proc >>= fun r ->
   copy_log >>= fun () ->
   if Lwt.is_sleeping cancelled then Lwt.return (r :> (unit, [`Msg of string | `Cancelled]) result)
+  else Lwt_result.fail `Cancelled
+
+let shell ~cancelled ?stdin ?unix_sock t config results_dir =
+  Lwt_io.with_temp_dir ~perm:0o700 ~prefix:"obuilder-runc-" @@ fun tmp ->
+  let json_config = Json_config.make config ~config_dir:tmp ~results_dir t in
+  Os.write_file ~path:(tmp / "config.json") (Yojson.Safe.pretty_to_string json_config ^ "\n") >>= fun () ->
+  Os.write_file ~path:(tmp / "hosts") "127.0.0.1 localhost builder" >>= fun () ->
+  Lwt_list.fold_left_s
+    (fun id Config.Secret.{value; _} ->
+      Os.write_file ~path:(tmp / secret_file id) value >|= fun () ->
+      id + 1
+    ) 0 config.mount_secrets
+  >>= fun _ ->
+  let id = string_of_int !next_id in
+  incr next_id;
+  let opts =
+    match unix_sock with
+    | Some s -> ["-d"; "--console-socket"; s]
+    | None -> []
+  in
+  let cmd = ["runc"; "--root"; t.runc_state_dir; "run"] @ opts @ [ id] in
+  let proc =
+    let stdin = Option.map (fun x -> `FD_move_safely x) stdin in
+    let pp f = 
+      match config.argv with
+      | `Run argv -> Os.pp_cmd f ("", argv) 
+      | `Terminal -> Os.pp_cmd f ("", ["terminal"])
+    in
+    Os.sudo_result ~cwd:tmp ?stdin ~pp cmd
+  in
+  let cond = Lwt_condition.create () in
+  Lwt.on_termination cancelled (fun () ->
+      let rec aux () =
+        if Lwt.is_sleeping proc then (
+          let pp f = Fmt.pf f "runc kill %S" id in
+          Os.sudo_result ~cwd:tmp ["runc"; "--root"; t.runc_state_dir; "kill"; id; "KILL"] ~pp >>= function
+          | Ok () -> Lwt_condition.broadcast cond (); Lwt.return_unit
+          | Error (`Msg m) ->
+            (* This might be because it hasn't been created yet, so retry. *)
+            Log.warn (fun f -> f "kill failed: %s (will retry in 10s)" m);
+            Lwt_unix.sleep 10.0 >>= aux
+        ) else Lwt.return_unit  (* Process has already finished *)
+      in
+      Lwt.async aux
+    );
+  proc >>= fun r ->
+  if Lwt.is_sleeping cancelled then
+    let r = Result.map (fun () -> cond) r in
+    Lwt.return (r :> (unit Lwt_condition.t, [`Msg of string | `Cancelled]) result)
   else Lwt_result.fail `Cancelled
 
 let clean_runc dir =

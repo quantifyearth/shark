@@ -91,15 +91,58 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
                    let src = path / "rootfs" / dir in
                    { Config.Mount.src; dst = v.target; readonly = true }
              ) rom >>= fun rom_mounts ->
-             let argv = shell @ [cmd] in
+             let argv = `Run (shell @ [cmd]) in
              let mounts = mounts @ rom_mounts in
              let config = Config.v ~cwd:workdir ~argv ~hostname ~user ~env ~mounts ~mount_secrets ~network () in
              Os.with_pipe_to_child @@ fun ~r:stdin ~w:close_me ->
              Lwt_unix.close close_me >>= fun () ->
+             let roms = List.map Obuilder_spec.Rom.sexp_of_t rom in
+             let roms = Sexplib.Sexp.List roms |> Sexplib.Sexp.to_string in
+             Os.write_file ~path:(result_tmp / "rom") roms >>= fun () ->
              Sandbox.run ~cancelled ~stdin ~log t.sandbox config result_tmp
           )
           (fun () ->
              !to_release |> Lwt_list.iter_s (fun f -> f ())
+          )
+      )
+
+  let run_shell t ?unix_sock ~shell_established ~switch ~cache ~(rom:Obuilder_spec.Rom.t list) ?stdin id run_input =
+    let { base; workdir; user; env; cmd; shell; network; mount_secrets } = run_input in
+    Store.with_temp t.store id (fun result_tmp ->
+        let to_release = ref [] in
+        let cancelled, _ = Lwt.wait () in
+        Lwt.finalize
+          (fun () ->
+              let saved_roms =
+                match Sexplib.Sexp.load_sexp (result_tmp / "rom") with
+                | Sexplib.Sexp.List sexps ->
+                  List.map Obuilder_spec.Rom.t_of_sexp sexps
+                | exception _ | _ -> []
+              in
+              cache |> Lwt_list.map_s (fun { Obuilder_spec.Cache.id; target; buildkit_options = _ } ->
+                  Store.cache ~user t.store id >|= fun (src, release) ->
+                  to_release := release :: !to_release;
+                  { Config.Mount.src; dst = target; readonly = false }
+                )
+              >>= fun mounts ->
+              Lwt_list.map_p (fun v ->
+                match v.Obuilder_spec.Rom.kind with
+                | `Build (hash, dir) ->
+                    Store.result t.store hash >|= fun path ->
+                    let path = Option.get path in
+                    let src = path / "rootfs" / dir in
+                    { Config.Mount.src; dst = v.target; readonly = true }
+              ) (rom @ saved_roms) >>= fun rom_mounts ->
+              let argv = shell @ [cmd] in
+              let mounts = mounts @ rom_mounts in
+              let config = Config.v ~cwd:workdir ~argv:`Terminal ~hostname ~user ~env ~mounts ~mount_secrets ~network () in
+              Sandbox.shell ?unix_sock ~cancelled ?stdin t.sandbox config result_tmp >>!= fun cond ->
+              Lwt.wakeup_later shell_established ();
+              Lwt_condition.wait cond >>= fun () ->
+              Lwt.return_ok ()
+          )
+          (fun () ->
+              !to_release |> Lwt_list.iter_s (fun f -> f ())
           )
       )
 
@@ -151,7 +194,7 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
       (* Fmt.pr "COPY: %a@." Sexplib.Sexp.pp_hum (sexp_of_copy_details details); *)
       let id = Sha256.to_hex (Sha256.string (Sexplib.Sexp.to_string (sexp_of_copy_details details))) in
       Store.build t.store ?switch ~base ~id ~log (fun ~cancelled ~log result_tmp ->
-          let argv = ["tar"; "-xf"; "-"] in
+          let argv = `Run ["tar"; "-xf"; "-"] in
           let config = Config.v
               ~cwd:"/"
               ~argv
@@ -264,6 +307,13 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
     get_base t ~log:context.Context.log base >>!= fun (id, env) ->
     let context = { context with env = context.env @ env } in
     run_steps t ~context ~base:id ops
+
+  let shell t ?unix_sock ?stdin id =
+    let stdin = Option.map (fun stdin -> Os.{ raw = stdin; needs_close = false }) stdin in
+    let rinput = { base = ""; workdir = "/"; user = Obuilder_spec.(`Unix { uid = 0; gid = 0 }); env = []; cmd = ""; shell = [ "sh" ]; network = []; mount_secrets = [] } in
+    let established, shell_established = Lwt.wait () in
+    let f = run_shell t ?unix_sock ~shell_established ~switch:None ?stdin ~cache:[] ~rom:[] id rinput in
+    established, f
 
   let build t context spec =
     let r = build ~scope:[] t context spec in

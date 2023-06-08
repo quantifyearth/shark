@@ -22,7 +22,7 @@ end
 
 type t = {
   cwd : string;
-  argv : string list;
+  argv : [`Run of string list | `Terminal ];
   hostname : string;
   user : Obuilder_spec.user;
   env : env;

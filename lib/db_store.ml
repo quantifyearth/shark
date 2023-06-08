@@ -73,6 +73,12 @@ module Make (Raw : S.STORE) = struct
     | `Loaded -> client_log `Note (Fmt.str "---> using %S from cache" id)
     | `Saved -> client_log `Note (Fmt.str "---> saved as %S" id)
 
+  let with_temp t id fn = 
+    let tmp = "tmp-" ^ id in
+    Raw.build ~base:id t.raw ~id:tmp fn >>!= fun () ->
+    Raw.delete t.raw tmp >>= fun () ->
+    Lwt.return @@ Ok ()
+
   (* Check to see if we're in the process of building [id].
      If so, just tail the log from that.
      If not, use [get_build] to get the build.

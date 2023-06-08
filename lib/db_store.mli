@@ -14,6 +14,8 @@ module Make (Raw : S.STORE) : sig
       @param switch Turn this off if you no longer need the result. The build
                     will be cancelled if no-one else is waiting for it. *)
 
+  val with_temp : t -> S.id -> (string -> (unit, [`Cancelled | `Msg of string]) Lwt_result.t) -> (unit, [`Cancelled | `Msg of string]) Lwt_result.t
+
   val delete : ?log:(S.id -> unit) -> t -> S.id -> unit Lwt.t
 
   val prune : ?log:(S.id -> unit) -> t -> before:Unix.tm -> int -> int Lwt.t

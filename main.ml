@@ -51,6 +51,20 @@ let build () store spec conf src_dir secrets =
       exit 1
   end
 
+let run () store conf id =
+  Lwt_main.run begin
+    create_builder store conf >>= fun (Builder ((module Builder), builder)) ->
+    Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
+    Builder.shell builder id >>= function
+    | Ok x -> Lwt.return_unit
+    | Error `Cancelled ->
+      Fmt.epr "Cancelled at user's request@.";
+      exit 1
+    | Error (`Msg m) ->
+      Fmt.epr "Build step failed: %s@." m;
+      exit 1
+  end
+
 let healthcheck () store conf =
   Lwt_main.run begin
     create_builder store conf >>= fun (Builder ((module Builder), builder)) ->
@@ -179,7 +193,13 @@ let healthcheck =
   Cmd.v info
     Term.(const healthcheck $ setup_log $ store $ Obuilder.Sandbox.cmdliner)
 
-let cmds = [build; delete; clean; dockerfile; healthcheck]
+let run =
+  let doc = "Run a shell inside a container" in
+  let info = Cmd.info "run" ~doc in
+  Cmd.v info
+    Term.(const run $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
+
+let cmds = [build; run; delete; clean; dockerfile; healthcheck]
 
 let () =
   let doc = "a command-line interface for OBuilder" in

@@ -71,6 +71,15 @@ end
 module type SANDBOX = sig
   type t
 
+  val shell :
+    cancelled:unit Lwt.t ->
+    ?stdin:Os.unix_fd ->
+    ?unix_sock:string ->
+    t ->
+    Config.t ->
+    string ->
+    (unit Lwt_condition.t, [`Cancelled | `Msg of string]) Lwt_result.t
+
   val run :
     cancelled:unit Lwt.t ->
     ?stdin:Os.unix_fd ->
@@ -96,6 +105,13 @@ module type BUILDER = sig
     context ->
     Obuilder_spec.t ->
     (id, [> `Cancelled | `Msg of string]) Lwt_result.t
+
+  val shell :
+    t ->
+    ?unix_sock:string ->
+    ?stdin:Unix.file_descr ->
+    id ->
+    unit Lwt.t * (unit, [ `Cancelled | `Msg of string]) Lwt_result.t
 
   val finish : t -> unit Lwt.t
   (** [finish builder] close allocated resources and store state (e.g., sqlite3
