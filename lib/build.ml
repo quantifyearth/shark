@@ -134,6 +134,7 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
                     { Config.Mount.src; dst = v.target; readonly = true }
               ) (rom @ saved_roms) >>= fun rom_mounts ->
               let argv = shell @ [cmd] in
+              let { Saved_context.env } = Saved_context.t_of_sexp (Sexplib.Sexp.load_sexp (result_tmp / "env")) in
               let mounts = mounts @ rom_mounts in
               let config = Config.v ~cwd:workdir ~argv:`Terminal ~hostname ~user ~env ~mounts ~mount_secrets ~network () in
               Sandbox.shell ?unix_sock ~cancelled ?stdin t.sandbox config result_tmp >>!= fun cond ->
@@ -310,7 +311,7 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
 
   let shell t ?unix_sock ?stdin id =
     let stdin = Option.map (fun stdin -> Os.{ raw = stdin; needs_close = false }) stdin in
-    let rinput = { base = ""; workdir = "/"; user = Obuilder_spec.(`Unix { uid = 0; gid = 0 }); env = []; cmd = ""; shell = [ "sh" ]; network = []; mount_secrets = [] } in
+    let rinput = { base = ""; workdir = "/"; user = Obuilder_spec.(`Unix { uid = 1000; gid = 1000 }); env = []; cmd = ""; shell = [ "sh" ]; network = [ "host" ]; mount_secrets = [] } in
     let established, shell_established = Lwt.wait () in
     let f = run_shell t ?unix_sock ~shell_established ~switch:None ?stdin ~cache:[] ~rom:[] id rinput in
     established, f
