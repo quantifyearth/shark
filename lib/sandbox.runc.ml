@@ -140,8 +140,8 @@ module Json_config = struct
         "rlimits", `List [
           `Assoc [
             "type", `String "RLIMIT_NOFILE";
-            "hard", `Int 1024;
-            "soft", `Int 1024
+            "hard", `Int 16384;
+            "soft", `Int 16384
           ];
         ];
         "noNewPrivileges", `Bool false;
