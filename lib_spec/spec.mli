@@ -39,11 +39,11 @@ type op = [
 
 type t = private {
   child_builds : (string * t) list;
-  from : string;
+  from : [ `Image of string | `Build of string ];
   ops : op list;
 } [@@deriving sexp]
 
-val stage : ?child_builds:(string * t) list -> from:string -> op list -> t
+val stage : ?child_builds:(string * t) list -> from:[`Image of string | `Build of string] -> op list -> t
 
 val comment : ('a, unit, string, op) format4 -> 'a
 val workdir : string -> op

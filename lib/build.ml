@@ -6,7 +6,7 @@ let ( >>!= ) = Lwt_result.bind
 
 let hostname = "builder"
 
-let healthcheck_base = "busybox"
+let healthcheck_base = `Image "busybox"
 let healthcheck_ops =
   let open Obuilder_spec in
   [
@@ -278,21 +278,31 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
         k ~base ~context:{context with shell}
 
   let get_base t ~log base =
-    log `Heading (Fmt.str "(from %a)" Sexplib.Sexp.pp_hum (Atom base));
-    let id = Sha256.to_hex (Sha256.string base) in
-    Store.build t.store ~id ~log (fun ~cancelled:_ ~log tmp ->
-        Log.info (fun f -> f "Base image not present; importing %S…" base);
-        let rootfs = tmp / "rootfs" in
-        Os.sudo ["mkdir"; "-m"; "755"; "--"; rootfs] >>= fun () ->
-        Fetch.fetch ~log ~rootfs base >>= fun env ->
-        Os.write_file ~path:(tmp / "env")
-          (Sexplib.Sexp.to_string_hum Saved_context.(sexp_of_t {env})) >>= fun () ->
-        Lwt_result.return ()
-      )
-    >>!= fun id -> Store.result t.store id
-    >|= Option.get >>= fun path ->
-    let { Saved_context.env } = Saved_context.t_of_sexp (Sexplib.Sexp.load_sexp (path / "env")) in
-    Lwt_result.return (id, env)
+    let () = match base with
+      | `Image i -> log `Heading (Fmt.str "(from %a)" Sexplib.Sexp.pp_hum (Atom i));
+      | `Build b -> log `Heading (Fmt.str "(base %a)" Sexplib.Sexp.pp_hum (Atom b));
+    in 
+    match base with
+    | `Build base ->
+      Store.result t.store base
+      >|= Option.get >>= fun path ->
+      let { Saved_context.env } = Saved_context.t_of_sexp (Sexplib.Sexp.load_sexp (path / "env")) in
+      Lwt_result.return (base, env)
+    | `Image base ->
+      let id = Sha256.to_hex (Sha256.string base) in
+      Store.build t.store ~id ~log (fun ~cancelled:_ ~log tmp ->
+          Log.info (fun f -> f "Base image not present; importing %S…" base);
+          let rootfs = tmp / "rootfs" in
+          Os.sudo ["mkdir"; "-m"; "755"; "--"; rootfs] >>= fun () ->
+          Fetch.fetch ~log ~rootfs base >>= fun env ->
+          Os.write_file ~path:(tmp / "env")
+            (Sexplib.Sexp.to_string_hum Saved_context.(sexp_of_t {env})) >>= fun () ->
+          Lwt_result.return ()
+        )
+      >>!= fun id -> Store.result t.store id
+      >|= Option.get >>= fun path ->
+      let { Saved_context.env } = Saved_context.t_of_sexp (Sexplib.Sexp.load_sexp (path / "env")) in
+      Lwt_result.return (id, env)
 
   let rec build ~scope t context { Obuilder_spec.child_builds; from = base; ops } =
     let rec aux context = function
