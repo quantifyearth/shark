@@ -55,8 +55,9 @@ let run () store conf id =
   Lwt_main.run begin
     create_builder store conf >>= fun (Builder ((module Builder), builder)) ->
     Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
-    Builder.shell builder id >>= function
-    | Ok x -> Lwt.return_unit
+    let _, v = Builder.shell builder id in
+    v >>= fun v -> match v with
+    | Ok _ -> Lwt.return_unit
     | Error `Cancelled ->
       Fmt.epr "Cancelled at user's request@.";
       exit 1

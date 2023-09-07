@@ -106,8 +106,8 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
           )
       )
 
-  let run_shell t ?unix_sock ~shell_established ~switch ~cache ~(rom:Obuilder_spec.Rom.t list) ?stdin id run_input =
-    let { base; workdir; user; env; cmd; shell; network; mount_secrets } = run_input in
+  let run_shell t ?unix_sock ~shell_established ~switch:_ ~cache ~(rom:Obuilder_spec.Rom.t list) ?stdin id run_input =
+    let { base=_; workdir; user; env=_; cmd=_; shell=_; network; mount_secrets } = run_input in
     Store.with_temp t.store id (fun result_tmp ->
         let to_release = ref [] in
         let cancelled, _ = Lwt.wait () in
@@ -133,7 +133,6 @@ module Make (Raw_store : S.STORE) (Sandbox : S.SANDBOX) (Fetch : S.FETCHER) = st
                     let src = path / "rootfs" / dir in
                     { Config.Mount.src; dst = v.target; readonly = true }
               ) (rom @ saved_roms) >>= fun rom_mounts ->
-              let argv = shell @ [cmd] in
               let { Saved_context.env } = Saved_context.t_of_sexp (Sexplib.Sexp.load_sexp (result_tmp / "env")) in
               let mounts = mounts @ rom_mounts in
               let config = Config.v ~cwd:workdir ~argv:`Terminal ~hostname ~user ~env ~mounts ~mount_secrets ~network () in

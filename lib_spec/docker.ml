@@ -103,7 +103,7 @@ let rec convert ~buildkit ~escape ~ctx f (name, { Spec.child_builds; from; ops }
   let from =
     match from with
     | `Image s -> s
-    | `Build s -> failwith "Not a docker image!!!"
+    | `Build _ -> failwith "Not a docker image!!!"
   in
   Fmt.pf f "@[<h>FROM %s%a@]@." from Fmt.(option (const string " as " ++ string)) name;
   let (_ : ctx) = List.fold_left (fun ctx op ->

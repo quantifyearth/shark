@@ -48,8 +48,9 @@ let mock_op ?(result=Lwt_result.return ()) ?(delay_store=Lwt.return_unit) ?cance
   Mock_store.delay_store := delay_store;
   let cmd =
     match config.argv with
-    | ["/bin/bash"; "-c"; cmd] | ["cmd"; "/S"; "/C"; cmd] -> cmd
-    | x -> Fmt.str "%a" Fmt.(Dump.list string) x
+    | `Run ["/bin/bash"; "-c"; cmd] | `Run ["cmd"; "/S"; "/C"; cmd] -> cmd
+    | `Run x -> Fmt.str "%a" Fmt.(Dump.list string) x
+    | `Terminal -> failwith "No terminals please"
   in
   Build_log.printf log "%s@." cmd >>= fun () ->
   cancel |> Option.iter (fun cancel ->
@@ -72,7 +73,7 @@ let test_simple _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
   let log = Log.create "b" in
   let context = Context.v ~src_dir ~log:(Log.add log) () in
-  let spec = Spec.(stage ~from:"base" [ run "Append" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Append" ]) in
   Mock_sandbox.expect sandbox (mock_op ~output:(`Append ("runner", "base-id")) ());
   B.build builder context spec >>!= get store "output" >>= fun result ->
   Alcotest.(check build_result) "Final result" (Ok "base-distro\nrunner") result;
@@ -101,7 +102,7 @@ let test_prune _switch () =
   let start = Unix.(gettimeofday () |> gmtime) in
   let log = Log.create "b" in
   let context = Context.v ~src_dir ~log:(Log.add log) () in
-  let spec = Spec.(stage ~from:"base" [ run "Append" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Append" ]) in
   Mock_sandbox.expect sandbox (mock_op ~output:(`Append ("runner", "base-id")) ());
   B.build builder context spec >>!= get store "output" >>= fun result ->
   Alcotest.(check build_result) "Final result" (Ok "base-distro\nrunner") result;
@@ -128,8 +129,8 @@ let test_concurrent _switch () =
   let log2 = Log.create "b2" in
   let context1 = Obuilder.Context.v ~log:(Log.add log1) ~src_dir () in
   let context2 = Obuilder.Context.v ~log:(Log.add log2) ~src_dir () in
-  let spec1 = Obuilder.Spec.(stage ~from:"base"[ run "A"; run "B" ]) in
-  let spec2 = Obuilder.Spec.(stage ~from:"base"[ run "A"; run "C" ]) in
+  let spec1 = Obuilder.Spec.(stage ~from:(`Image "base")[ run "A"; run "B" ]) in
+  let spec2 = Obuilder.Spec.(stage ~from:(`Image "base")[ run "A"; run "C" ]) in
   let a, a_done = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:a ~output:(`Constant "A") ());
   Mock_sandbox.expect sandbox (mock_op ~output:`Append_cmd ());
@@ -174,8 +175,8 @@ let test_concurrent_failure _switch () =
   let log2 = Log.create "b2" in
   let context1 = Obuilder.Context.v ~log:(Log.add log1) ~src_dir () in
   let context2 = Obuilder.Context.v ~log:(Log.add log2) ~src_dir () in
-  let spec1 = Obuilder.Spec.(stage ~from:"base" [ run "A"; run "B" ]) in
-  let spec2 = Obuilder.Spec.(stage ~from:"base" [ run "A"; run "C" ]) in
+  let spec1 = Obuilder.Spec.(stage ~from:(`Image "base") [ run "A"; run "B" ]) in
+  let spec2 = Obuilder.Spec.(stage ~from:(`Image "base") [ run "A"; run "C" ]) in
   let a, a_done = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:a ());
   let b1 = B.build builder context1 spec1 in
@@ -211,8 +212,8 @@ let test_concurrent_failure_2 _switch () =
   let log2 = Log.create "b2" in
   let context1 = Obuilder.Context.v ~log:(Log.add log1) ~src_dir () in
   let context2 = Obuilder.Context.v ~log:(Log.add log2) ~src_dir () in
-  let spec1 = Obuilder.Spec.(stage ~from:"base" [ run "A"; run "B" ]) in
-  let spec2 = Obuilder.Spec.(stage ~from:"base" [ run "A"; run "C" ]) in
+  let spec1 = Obuilder.Spec.(stage ~from:(`Image "base") [ run "A"; run "B" ]) in
+  let spec2 = Obuilder.Spec.(stage ~from:(`Image "base") [ run "A"; run "C" ]) in
   let a, a_done = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:(Lwt_result.fail (`Msg "Mock build failure")) ~delay_store:a ());
   let b1 = B.build builder context1 spec1 in
@@ -245,7 +246,7 @@ let test_cancel _switch () =
   let log = Log.create "b" in
   let switch = Lwt_switch.create () in
   let context = Context.v ~switch ~src_dir ~log:(Log.add log) () in
-  let spec = Spec.(stage ~from:"base" [ run "Wait" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Wait" ]) in
   let r, set_r = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:r ~cancel:set_r ());
   let b = B.build builder context spec in
@@ -264,7 +265,7 @@ let test_cancel _switch () =
 (* Two users are sharing a build. One cancels. *)
 let test_cancel_2 _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
-  let spec = Spec.(stage ~from:"base" [ run "Wait" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Wait" ]) in
   let r, set_r = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:r ~cancel:set_r ~output:(`Constant "ok") ());
   let log1 = Log.create "b1" in
@@ -301,7 +302,7 @@ let test_cancel_2 _switch () =
 (* Two users are sharing a build. Both cancel. *)
 let test_cancel_3 _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
-  let spec = Spec.(stage ~from:"base" [ run "Wait" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Wait" ]) in
   let r, set_r = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:r ~cancel:set_r ());
   let log1 = Log.create "b1" in
@@ -340,7 +341,7 @@ let test_cancel_3 _switch () =
 (* One user cancels a failed build after its replacement has started. *)
 let test_cancel_4 _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
-  let spec = Spec.(stage ~from:"base" [ run "Wait" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Wait" ]) in
   let r, set_r = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:r ~cancel:set_r ());
   let log1 = Log.create "b1" in
@@ -377,7 +378,7 @@ let test_cancel_4 _switch () =
 (* Start a new build while the previous one is cancelling. *)
 let test_cancel_5 _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
-  let spec = Spec.(stage ~from:"base" [ run "Wait" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "Wait" ]) in
   let r, set_r = Lwt.wait () in
   let delay_store, set_delay = Lwt.wait () in
   Mock_sandbox.expect sandbox (mock_op ~result:r ~cancel:set_r ~delay_store ());
@@ -403,7 +404,7 @@ let test_cancel_5 _switch () =
 
 let test_delete _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
-  let spec = Spec.(stage ~from:"base" [ run "A"; run "B" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run "A"; run "B" ]) in
   Mock_sandbox.expect sandbox (mock_op ~output:(`Constant "A") ());
   Mock_sandbox.expect sandbox (mock_op ~output:(`Constant "B") ());
   let log1 = Log.create "b1" in
@@ -723,7 +724,7 @@ let test_secrets_not_provided _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
   let log = Log.create "b" in
   let context = Context.v ~src_dir ~log:(Log.add log) () in
-  let spec = Spec.(stage ~from:"base" [ run ~secrets:[Secret.v ~target:"/run/secrets/test" "test"] "Append" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run ~secrets:[Secret.v ~target:"/run/secrets/test" "test"] "Append" ]) in
   Mock_sandbox.expect sandbox (mock_op ~output:(`Append ("runner", "base-id")) ());
   B.build builder context spec >>!= get store "output" >>= fun result ->
   Alcotest.(check build_result) "Final result" (Error (`Msg "Couldn't find value for requested secret 'test'")) result;
@@ -733,7 +734,7 @@ let test_secrets_simple _switch () =
   with_config @@ fun ~src_dir ~store ~sandbox ~builder ->
   let log = Log.create "b" in
   let context = Context.v ~src_dir ~log:(Log.add log) ~secrets:["test", "top secret value"; "test2", ""] () in
-  let spec = Spec.(stage ~from:"base" [ run ~secrets:[Secret.v ~target:"/testsecret" "test"; Secret.v "test2"] "Append" ]) in
+  let spec = Spec.(stage ~from:(`Image "base") [ run ~secrets:[Secret.v ~target:"/testsecret" "test"; Secret.v "test2"] "Append" ]) in
   Mock_sandbox.expect sandbox (mock_op ~output:(`Append ("runner", "base-id")) ());
   B.build builder context spec >>!= get store "output" >>= fun result ->
   Alcotest.(check build_result) "Final result" (Ok "base-distro\nrunner") result;
