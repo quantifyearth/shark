@@ -1,0 +1,53 @@
+version: 2
+jobs:
+  build:
+    macos:
+      xcode: "14.0.0"
+    environment:
+      OPAMYES: "1"
+      OPAMJOBS: "2"
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
+      OPAMVERBOSE: 1
+      TERM: vt100
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - checkout
+      - run: brew install wget
+      - run: brew install pkg-config
+      - run: brew install dylibbundler
+      - run: brew install opam
+      - run: brew install libtool
+      # Build the OCaml compiler
+      - restore_cache:
+           key: ocaml-cache-{{ checksum "Makefile"}}
+      - run: make -f Makefile ocaml
+      - save_cache:
+           paths:
+             - /Users/distiller/.opam
+           key: ocaml-cache-{{ checksum "Makefile"}}
+      # Build the OCaml dependencies, make sure the cache is cleared if the dependencies change.
+      - restore_cache:
+           key: depends-cache-{{ checksum "vpnkit.opam" }}-{{ checksum "Makefile"}}
+      - run: make -f Makefile depends
+      - save_cache:
+           paths:
+             - /Users/distiller/.opam
+           key: depends-cache-{{ checksum "vpnkit.opam" }}-{{ checksum "Makefile"}}
+      - run: opam exec -- dune build vpnkit.tgz
+      - store_artifacts:
+          path: ./_build/default/vpnkit.tgz
+      - run: opam exec -- dune build COMMIT
+      - store_artifacts:
+          path: ./_build/default/COMMIT
+      - run: opam exec -- dune build licenses.json
+      - store_artifacts:
+          path: ./_build/default/licenses.json
+      - store_artifacts:
+          path: ./_build/default/deps.csv
+      - run: opam exec -- dune test
+
+workflows:
+  version: 2
+  build-test-vpnkit:
+    jobs:
+      - build

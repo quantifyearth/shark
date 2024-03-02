@@ -1,0 +1,29 @@
+(executable
+ (name main)
+ (libraries cmdliner ofs logs.fmt hostnet hvsock hvsock.lwt
+   fd-send-recv duration mirage-clock-unix mirage-random
+   fs9p mirage-random-stdlib)
+ (flags
+  :standard
+  (:include flags.sexp))
+ (preprocess no_preprocessing))
+
+(rule
+ (targets flags.sexp)
+ (deps config/discover.exe)
+ (action
+  (run config/discover.exe -ocamlc "\%{OCAMLC}")))
+
+(rule
+ (targets version.ml)
+ (deps version.ml.in ../../Makefile)
+ (action
+  (chdir
+   %{workspace_root}
+   (run make src/bin/version.ml))))
+
+(install
+ (section bin)
+ (package vpnkit)
+ (files
+  (main.exe as vpnkit)))
