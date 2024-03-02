@@ -1,0 +1,4 @@
+(executable
+ (public_name shark)
+ (name main)
+ (libraries shark))
