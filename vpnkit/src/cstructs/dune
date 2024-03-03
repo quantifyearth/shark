@@ -1,4 +1,5 @@
 (library
  (name cstructs)
+ (public_name vpnkit.cstructs)
  (libraries cstruct fmt)
  (wrapped false))

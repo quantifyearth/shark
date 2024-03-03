@@ -1,4 +1,11 @@
 (executable
- (public_name shark)
  (name main)
- (libraries shark))
+ (libraries cmdliner vpnkit.ofs logs.fmt vpnkit.hostnet hvsock hvsock.lwt
+   fd-send-recv duration mirage-clock-unix mirage-random
+   vpnkit.fs9p mirage-random-stdlib))
+
+(install
+ (section bin)
+ (package shark)
+ (files
+  (main.exe as shark)))

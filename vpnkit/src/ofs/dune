@@ -1,5 +1,6 @@
 (library
  (name ofs)
+ (public_name vpnkit.ofs)
  (libraries protocol-9p cstruct io-page-unix logs astring mirage-time
    mirage-flow duration)
  (wrapped false))

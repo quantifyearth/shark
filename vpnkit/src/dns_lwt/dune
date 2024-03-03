@@ -1,4 +1,5 @@
 (library
   (name        dns_lwt)
+  (public_name vpnkit.dns_lwt)
   (libraries   vpnkit_dns lwt mirage-profile)
   (wrapped     false))
