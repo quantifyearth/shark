@@ -10,7 +10,7 @@ let fresh_id =
     this
 
 let make_a_query name =
-  let open Dns.Packet in
+  let open Vpnkit_dns.Packet in
   let id = fresh_id () in
   let detail = { qr = Query; opcode = Standard; aa = true; tc = false; rd = true; ra = false; rcode = NoError } in
   let questions = [ make_question Q_A name ] in
@@ -21,15 +21,15 @@ let make_a_query name =
   marshal pkt
 
 let parse_response response =
-  let pkt = Dns.Packet.parse response in
-  match pkt.Dns.Packet.detail with
-  | { Dns.Packet.qr = Dns.Packet.Query; _ } ->
+  let pkt = Vpnkit_dns.Packet.parse response in
+  match pkt.Vpnkit_dns.Packet.detail with
+  | { Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Query; _ } ->
       Lwt.return (Error (`Msg "parsed a response which was actually a query in disguise"))
-  | { Dns.Packet.qr = Dns.Packet.Response; _ } ->
-      begin match pkt.Dns.Packet.answers with
-      | [ { Dns.Packet.rdata = Dns.Packet.A ipv4; _ } ] ->
+  | { Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response; _ } ->
+      begin match pkt.Vpnkit_dns.Packet.answers with
+      | [ { Vpnkit_dns.Packet.rdata = Vpnkit_dns.Packet.A ipv4; _ } ] ->
           Lwt.return (Ok ipv4)
-      | xs -> Lwt.return (Error (`Msg (Printf.sprintf "failed to find answers: [ %s ]" (String.concat "; " (List.map Dns.Packet.rr_to_string xs)))))
+      | xs -> Lwt.return (Error (`Msg (Printf.sprintf "failed to find answers: [ %s ]" (String.concat "; " (List.map Vpnkit_dns.Packet.rr_to_string xs)))))
       end
 
 let fresh_port =
@@ -61,7 +61,7 @@ let test_server () =
       in
       Rpc.connect ~gen_transaction_id:Random.int ~message_cb address
       >>= fun c ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       Rpc.rpc c request
       >>= fun response ->
       parse_response response
@@ -103,7 +103,7 @@ let test_local_lookups () =
       let config = { servers; search = []; assume_offline_after_drops = None } in
       let open Lwt.Infix in
       let local_names_cb question =
-        let open Dns.Packet in
+        let open Vpnkit_dns.Packet in
         match question with
         | { q_name; q_type = Q_A; _ } ->
             let rdata = A (Ipaddr.V4.of_string_exn foo_private) in
@@ -124,7 +124,7 @@ let test_local_lookups () =
       >>= fun () ->
       Rpc.connect ~gen_transaction_id:Random.int f_address
       >>= fun c ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       Rpc.rpc c request
       >>= fun response ->
       parse_response response
@@ -184,14 +184,14 @@ let test_udp_nonpersistent () =
       in
       Proto_client.connect ~gen_transaction_id:Random.int ~message_cb f_address
       >>= fun c ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let send_request () =
         Proto_client.rpc c request
         >>= fun response ->
         (* Check the response has the correct transaction id *)
-        let request' = Dns.Packet.parse request
-        and response' = Dns.Packet.parse response in
-        Alcotest.(check int) "DNS.id" request'.Dns.Packet.id response'.Dns.Packet.id;
+        let request' = Vpnkit_dns.Packet.parse request
+        and response' = Vpnkit_dns.Packet.parse response in
+        Alcotest.(check int) "DNS.id" request'.Vpnkit_dns.Packet.id response'.Vpnkit_dns.Packet.id;
         parse_response response
         >>= fun ipv4 ->
         Alcotest.(check string) "IPv4" foo_public (Ipaddr.V4.to_string ipv4);
@@ -268,14 +268,14 @@ let test_tcp_multiplexing () =
       in
       Proto_client.connect ~gen_transaction_id:Random.int ~message_cb f_address
       >>= fun c ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let send_request () =
         Proto_client.rpc c request
         >>= fun response ->
         (* Check the response has the correct transaction id *)
-        let request' = Dns.Packet.parse request
-        and response' = Dns.Packet.parse response in
-        Alcotest.(check int) "DNS.id" request'.Dns.Packet.id response'.Dns.Packet.id;
+        let request' = Vpnkit_dns.Packet.parse request
+        and response' = Vpnkit_dns.Packet.parse response in
+        Alcotest.(check int) "DNS.id" request'.Vpnkit_dns.Packet.id response'.Vpnkit_dns.Packet.id;
         parse_response response
         >>= fun ipv4 ->
         Alcotest.(check string) "IPv4" foo_public (Ipaddr.V4.to_string ipv4);
@@ -342,16 +342,16 @@ let test_good_bad_server () =
       let open Lwt.Infix in
       R.create ~gen_transaction_id:Random.int config
       >>= fun r ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let request =
         R.answer request r
         >>= function
         | Ok reply ->
             let len = Cstruct.length reply in
             let buf = reply in
-            begin match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
-            | Some { Dns.Packet.answers = _ :: _ ; _ } -> Lwt.return_true
-            | Some packet -> failwith ("test_good_bad_server bad response: " ^ (Dns.Packet.to_string packet))
+            begin match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+            | Some { Vpnkit_dns.Packet.answers = _ :: _ ; _ } -> Lwt.return_true
+            | Some packet -> failwith ("test_good_bad_server bad response: " ^ (Vpnkit_dns.Packet.to_string packet))
             | None -> failwith "test_good_bad_server: failed to parse response"
             end
         | Error _ -> failwith "test_good_bad_server timeout: did the failure overtake the success?" in
@@ -405,7 +405,7 @@ let test_good_dead_server () =
       let open Lwt.Infix in
       R.create ~gen_transaction_id:Random.int config
       >>= fun r ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let t = R.answer request r in
       (* First request will trigger the internal timeout and mark the bad server
          as offline. The sleep timeout here will only trigger if this fails. *)
@@ -429,9 +429,9 @@ let test_good_dead_server () =
         | Ok reply ->
             let len = Cstruct.length reply in
             let buf = reply in
-            begin match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
-            | Some { Dns.Packet.answers = _ :: _ ; _ } -> Lwt.return_true
-            | Some packet -> failwith ("test_good_dead_server bad response: " ^ (Dns.Packet.to_string packet))
+            begin match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+            | Some { Vpnkit_dns.Packet.answers = _ :: _ ; _ } -> Lwt.return_true
+            | Some packet -> failwith ("test_good_dead_server bad response: " ^ (Vpnkit_dns.Packet.to_string packet))
             | None -> failwith "test_good_dead_server: failed to parse response"
             end
         | Error _ -> failwith "test_good_dead_server timeout: did the failure overtake the success?" in
@@ -480,7 +480,7 @@ let test_bad_server () =
       let open Lwt.Infix in
       R.create ~gen_transaction_id:Random.int config
       >>= fun r ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let request =
         R.answer request r
         >>= function
@@ -526,7 +526,7 @@ let test_timeout () =
       let open Lwt.Infix in
       R.create ~gen_transaction_id:Random.int config
       >>= fun r ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let request =
         R.answer request r
         >>= function
@@ -574,7 +574,7 @@ let test_cache () =
       let open Lwt.Infix in
       R.create ~gen_transaction_id:Random.int config
       >>= fun r ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       R.answer request r
       >>= function
       | Error _ -> failwith "failed initial lookup"
@@ -632,7 +632,7 @@ let test_order () =
       let open Lwt.Infix in
       R.create ~gen_transaction_id:Random.int config
       >>= fun r ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       let open Error in
       R.answer request r
       >>= fun response ->
@@ -694,7 +694,7 @@ let test_forwarder_zone () =
       >>= fun () ->
       Rpc.connect ~gen_transaction_id:Random.int f_address
       >>= fun c ->
-      let request = make_a_query (Dns.Name.of_string "foo") in
+      let request = make_a_query (Vpnkit_dns.Name.of_string "foo") in
       Rpc.rpc c request
       >>= fun response ->
       parse_response response

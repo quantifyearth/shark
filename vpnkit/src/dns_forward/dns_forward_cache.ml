@@ -17,7 +17,7 @@
 
 module Question = struct
   module M = struct
-    type t = Dns.Packet.question
+    type t = Vpnkit_dns.Packet.question
 
     (* Stdlib.compare is ok because the question consists of a record of
        constant constructors and a string list. Ideally ocaml-dns would provide
@@ -31,7 +31,7 @@ end
 module Address = Dns_forward_config.Address
 
 type answer = {
-  rrs: Dns.Packet.rr list;
+  rrs: Vpnkit_dns.Packet.rr list;
   (* We'll use the Lwt scheduler as a priority queue to expire records, one
      timeout thread per record. *)
   timeout: unit Lwt.t;
@@ -85,7 +85,7 @@ module Make(Time: Mirage_time.S) = struct
        from the same server address when the lowest TTL is exceeded. *)
     let min_ttl =
       List.fold_left min Int32.max_int
-        (List.map (fun rr -> rr.Dns.Packet.ttl) rrs)
+        (List.map (fun rr -> rr.Vpnkit_dns.Packet.ttl) rrs)
     in
     let timeout =
       let open Lwt.Infix in

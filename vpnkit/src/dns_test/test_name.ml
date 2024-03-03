@@ -7,7 +7,7 @@ let cstruct_of ints =
       Buffer.add_char buf (Char.chr i));
   Cstruct.of_string (Buffer.contents buf)
 
-open Dns
+open Vpnkit_dns
 open Name
 
 let tests =

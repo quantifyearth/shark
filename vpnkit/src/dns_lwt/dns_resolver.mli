@@ -20,7 +20,7 @@ type commfn = {
   txfn    : Cstruct.t -> unit Lwt.t;
   (** [txfn buf] resolves when [buf] has been transmitted. *)
 
-  rxfn    : (Cstruct.t -> Dns.Packet.t option) -> Dns.Packet.t Lwt.t;
+  rxfn    : (Cstruct.t -> Vpnkit_dns.Packet.t option) -> Vpnkit_dns.Packet.t Lwt.t;
   (** [rxfn parse] resolves to a packet processed by [parse] after it
       has been received. *)
 
@@ -36,10 +36,10 @@ type commfn = {
     timeout requests and clean up any resources used. *)
 
 val resolve_pkt :
-  (module Dns.Protocol.CLIENT) ->
+  (module Vpnkit_dns.Protocol.CLIENT) ->
   ?alloc:(unit -> Cstruct.t) ->
-  commfn -> Dns.Packet.t ->
-  Dns.Packet.t Lwt.t
+  commfn -> Vpnkit_dns.Packet.t ->
+  Vpnkit_dns.Packet.t Lwt.t
 (** [resolve_pkt client ?alloc commfn packet] will attempt resolution
     of the query contained in [packet] via the protocol client
     [client] and using the utilities of [commfn]. [alloc] may be
@@ -49,29 +49,29 @@ val resolve_pkt :
     query simultaneously. The first received successful response will
     be returned. If no responses are successful or received before
     {!commfn.timerfn} resolves, the {!Lwt.t} value will fail with a
-    {!Dns.Protocol.Dns_resolve_error} exception which contains a list
+    {!Vpnkit_dns.Protocol.Dns_resolve_error} exception which contains a list
     of all of the errors encountered during resolution. *)
 
 val resolve : 
-  (module Dns.Protocol.CLIENT) ->
+  (module Vpnkit_dns.Protocol.CLIENT) ->
   ?alloc:(unit -> Cstruct.t) ->
   ?dnssec:bool ->
-  commfn -> Dns.Packet.q_class -> 
-  Dns.Packet.q_type -> 
-  Dns.Name.t ->
-  Dns.Packet.t Lwt.t
+  commfn -> Vpnkit_dns.Packet.q_class -> 
+  Vpnkit_dns.Packet.q_type -> 
+  Vpnkit_dns.Name.t ->
+  Vpnkit_dns.Packet.t Lwt.t
 (** [resolve client ?alloc ?dnssec commfn q_class q_type name] will
     construct a query packet from [dnssec], [q_class], [q_type], and
     [name] and then attempt to resolve it by calling {!resolve_pkt}. *)
 
 val gethostbyname :
   ?alloc:(unit -> Cstruct.t) ->
-  ?q_class:Dns.Packet.q_class ->
-  ?q_type:Dns.Packet.q_type -> commfn ->
+  ?q_class:Vpnkit_dns.Packet.q_class ->
+  ?q_type:Vpnkit_dns.Packet.q_type -> commfn ->
   string -> Ipaddr.t list Lwt.t
 
 val gethostbyaddr :
   ?alloc:(unit -> Cstruct.t) ->
-  ?q_class:Dns.Packet.q_class ->
-  ?q_type:Dns.Packet.q_type -> commfn ->
+  ?q_class:Vpnkit_dns.Packet.q_class ->
+  ?q_type:Vpnkit_dns.Packet.q_type -> commfn ->
   Ipaddr.V4.t -> string list Lwt.t

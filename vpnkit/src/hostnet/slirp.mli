@@ -56,7 +56,7 @@ sig
       val get_max_active_flows: connection -> int
     end
 
-    val update_dns: ?local_ip:Ipaddr.t -> ?builtin_names:(Dns.Name.t * Ipaddr.t) list ->
+    val update_dns: ?local_ip:Ipaddr.t -> ?builtin_names:(Vpnkit_dns.Name.t * Ipaddr.t) list ->
       unit -> unit
     (** Update the DNS forwarder following a configuration change *)
 

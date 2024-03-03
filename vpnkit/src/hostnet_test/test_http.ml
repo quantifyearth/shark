@@ -97,14 +97,14 @@ let with_server on_accept f =
 module Outgoing = struct
   module C = Mirage_channel.Make(Slirp_stack.Client.TCPV4)
   module IO = Cohttp_mirage_io.Make(C)
-  module Request = Cohttp.Request.Make(IO)
-  module Response = Cohttp.Response.Make(IO)
+  module Request = Cohttp.Request.Private.Make(IO)
+  module Response = Cohttp.Response.Private.Make(IO)
 end
 module Incoming = struct
   module C = Mirage_channel.Make(Host.Sockets.Stream.Tcp)
   module IO = Cohttp_mirage_io.Make(C)
-  module Request = Cohttp.Request.Make(IO)
-  module Response = Cohttp.Response.Make(IO)
+  module Request = Cohttp.Request.Private.Make(IO)
+  module Response = Cohttp.Response.Private.Make(IO)
 end
 
 let send_http_request stack (ip, port) request =
@@ -1067,7 +1067,7 @@ let proxy_urls = [
   "http://user:password@127.0.0.1";
   "http://localhost";
 ] @ (List.map (fun name ->
-  Printf.sprintf "http://%s" (Dns.Name.to_string name)
+  Printf.sprintf "http://%s" (Vpnkit_dns.Name.to_string name)
 ) Slirp_stack.names_for_localhost)
 
 let tests = [
@@ -1106,7 +1106,7 @@ let tests = [
 
 ] @ (List.map (fun name ->
     "HTTP proxy: GET to localhost",
-    [ "check that HTTP GET to localhost via hostname", `Quick, test_http_proxy_localhost (Dns.Name.to_string name) ]
+    [ "check that HTTP GET to localhost via hostname", `Quick, test_http_proxy_localhost (Vpnkit_dns.Name.to_string name) ]
   ) Slirp_stack.names_for_localhost
 ) @ (List.concat @@ List.map (fun proxy -> [
 

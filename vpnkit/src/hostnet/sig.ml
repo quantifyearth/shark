@@ -130,7 +130,7 @@ module type FILES = sig
 end
 
 module type DNS = sig
-  val resolve: Dns.Packet.question -> Dns.Packet.rr list Lwt.t
+  val resolve: Vpnkit_dns.Packet.question -> Vpnkit_dns.Packet.rr list Lwt.t
   (** Given a question, find associated resource records *)
 end
 

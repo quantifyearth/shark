@@ -17,7 +17,7 @@
  *)
 
 open Lwt.Infix
-open Dns
+open Vpnkit_dns
 open Operators
 open Protocol
 
@@ -27,7 +27,7 @@ type result = Answer of DP.t | Error of exn
 
 type commfn = {
   txfn    : Cstruct.t -> unit Lwt.t;
-  rxfn    : (Cstruct.t -> Dns.Packet.t option) -> DP.t Lwt.t;
+  rxfn    : (Cstruct.t -> Vpnkit_dns.Packet.t option) -> DP.t Lwt.t;
   timerfn : unit -> unit Lwt.t;
   cleanfn : unit -> unit Lwt.t;
 }
@@ -86,7 +86,7 @@ let resolve client
     (q_class:DP.q_class) (q_type:DP.q_type)
     (q_name:Name.t) =
   let id = (let module R = (val client : CLIENT) in R.get_id ()) in
-  let q = Dns.Query.create ~id ~dnssec q_class q_type q_name in
+  let q = Vpnkit_dns.Query.create ~id ~dnssec q_class q_type q_name in
   resolve_pkt client ?alloc commfn q
 
 let gethostbyname
@@ -96,7 +96,7 @@ let gethostbyname
     name =
   let open DP in
   let domain = Name.of_string name in
-  resolve (module Dns.Protocol.Client) ?alloc commfn q_class q_type domain
+  resolve (module Vpnkit_dns.Protocol.Client) ?alloc commfn q_class q_type domain
   >|= fun r ->
   List.fold_left (fun a x ->
       match x.rdata with
@@ -114,7 +114,7 @@ let gethostbyaddr
   =
   let addr = Name.of_ipaddr (Ipaddr.V4 addr) in
   let open DP in
-  resolve (module Dns.Protocol.Client) ?alloc commfn q_class q_type addr
+  resolve (module Vpnkit_dns.Protocol.Client) ?alloc commfn q_class q_type addr
   >|= fun r ->
   List.fold_left (fun a x ->
       match x.rdata with |PTR n -> (Name.to_string n)::a |_->a

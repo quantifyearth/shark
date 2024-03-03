@@ -17,7 +17,7 @@
 open Dns_forward
 module Error = Error.Infix
 
-let bad_question = Dns.Packet.make_question Dns.Packet.Q_A (Dns.Name.of_string "this.is.a.bad.question.")
+let bad_question = Vpnkit_dns.Packet.make_question Vpnkit_dns.Packet.Q_A (Vpnkit_dns.Name.of_string "this.is.a.bad.question.")
 
 module Make(Server: Rpc.Server.S) = struct
   type t = {
@@ -38,37 +38,37 @@ module Make(Server: Rpc.Server.S) = struct
     >>= fun () ->
     let len = Cstruct.length buffer in
     let buf = buffer in
-    match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+    match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
     | Some request ->
-        let open Dns.Packet in
+        let open Vpnkit_dns.Packet in
         begin match request with
         | { id; detail; additionals; questions = [ { q_class = Q_IN; q_type = Q_A; q_name; _ } ]; _ } ->
             begin match List.fold_left (fun found (name, ip) -> match found, ip with
               | Some v4, _           -> Some v4
               | None,   Ipaddr.V4 v4 ->
-                  if Dns.Name.to_string q_name = name then Some v4 else None
+                  if Vpnkit_dns.Name.to_string q_name = name then Some v4 else None
               | None,   Ipaddr.V6 _  -> None
               ) None t.names with
             | None ->
                 let answers = [] in
                 let detail = { detail with
-                               Dns.Packet.qr = Dns.Packet.Response;
-                               rcode = Dns.Packet.NXDomain
+                               Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response;
+                               rcode = Vpnkit_dns.Packet.NXDomain
                              } in
                 let questions = match t.simulate_bad_question with
                 | true -> [ bad_question ]
                 | false -> request.questions in
-                let pkt = { Dns.Packet.id; detail; questions; authorities=[]; additionals; answers } in
-                let buf = Dns.Packet.marshal pkt in
+                let pkt = { Vpnkit_dns.Packet.id; detail; questions; authorities=[]; additionals; answers } in
+                let buf = Vpnkit_dns.Packet.marshal pkt in
                 Lwt.return (Ok buf)
             | Some v4 ->
                 let answers = [ { name = q_name; cls = RR_IN; flush = false; ttl = 0l; rdata = A v4 } ] in
-                let detail = { detail with Dns.Packet.qr = Dns.Packet.Response } in
+                let detail = { detail with Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response } in
                 let questions = match t.simulate_bad_question with
                 | true -> [ bad_question ]
                 | false -> request.questions in
-                let pkt = { Dns.Packet.id; detail; questions; authorities=[]; additionals; answers } in
-                let buf = Dns.Packet.marshal pkt in
+                let pkt = { Vpnkit_dns.Packet.id; detail; questions; authorities=[]; additionals; answers } in
+                let buf = Vpnkit_dns.Packet.marshal pkt in
                 Lwt.return (Ok buf)
             end
         | _ ->

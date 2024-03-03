@@ -135,7 +135,7 @@ let localhost_ip = Ipaddr.V4.of_string_exn "192.168.65.2"
 
 let preferred_ip1 = Ipaddr.V4.of_string_exn "192.168.65.250"
 
-let names_for_localhost = List.map Dns.Name.of_string [ "name1.for.localhost"; "name2.for.localhost" ]
+let names_for_localhost = List.map Vpnkit_dns.Name.of_string [ "name1.for.localhost"; "name2.for.localhost" ]
 
 let local_tcpv4_forwarded_port = 8888
 

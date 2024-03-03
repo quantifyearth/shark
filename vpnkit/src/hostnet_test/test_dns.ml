@@ -47,7 +47,7 @@ let test_dns_query server config () =
 let test_builtin_dns_query server config () =
   let name = "experimental.host.name.localhost" in
   let t _ stack =
-    set_dns_policy ~builtin_names:[ Dns.Name.of_string name, Ipaddr.V4 (Ipaddr.V4.localhost) ] config;
+    set_dns_policy ~builtin_names:[ Vpnkit_dns.Name.of_string name, Ipaddr.V4 (Ipaddr.V4.localhost) ] config;
     let resolver = DNS.create stack.Client.t in
     DNS.gethostbyname ~server resolver name >>= function
     | (_ :: _) as ips ->
@@ -90,7 +90,7 @@ let test_etc_hosts_priority server config () =
   let builtin_ip = Ipaddr.of_string_exn "127.0.0.1" in
   let hosts_ip = Ipaddr.of_string_exn "127.0.0.2" in
   let t _ stack =
-    set_dns_policy ~builtin_names:[ Dns.Name.of_string name, builtin_ip ] config;
+    set_dns_policy ~builtin_names:[ Vpnkit_dns.Name.of_string name, builtin_ip ] config;
     Hosts.etc_hosts := [
       name, hosts_ip;
     ];
@@ -139,7 +139,7 @@ module Server = struct
     Udp.listen server
       (fun flow ->
         Log.debug (fun f -> f "Received UDP datagram");
-	      let open Dns.Packet in
+	      let open Vpnkit_dns.Packet in
         Udp.read flow
         >>= function
         | Error _ ->
@@ -150,7 +150,7 @@ module Server = struct
           Lwt.return_unit
         | Ok (`Data buf) ->
           let len = Cstruct.length buf in
-          begin match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+          begin match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
           | None ->
             Log.err (fun f -> f "failed to parse DNS packet");
             Lwt.return_unit
@@ -159,11 +159,11 @@ module Server = struct
             let reply answers =
               let id = request.id in
               let detail =
-                { request.detail with Dns.Packet.qr = Dns.Packet.Response; ra = true }
+                { request.detail with Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response; ra = true }
               in
               let questions = request.questions in
               let authorities = [] and additionals = [] in
-              { Dns.Packet.id; detail; questions; answers; authorities; additionals }
+              { Vpnkit_dns.Packet.id; detail; questions; answers; authorities; additionals }
             in
             let buf = marshal @@ reply answers in
             Log.info (fun f -> f "DNS response is a UDP datagram of length %d" (Cstruct.length buf));
@@ -218,10 +218,10 @@ let udp_rpc client src_port dst dst_port buffer =
   loop ()
 
 let query_a name =
-  let open Dns.Packet in
+  let open Vpnkit_dns.Packet in
   let id = Random.int 0xffff in
   let detail = { qr = Query; opcode = Standard; aa = false; tc = false; rd = true; ra = false; rcode = NoError } in
-  let questions = [ { q_name = Dns.Name.of_string name; q_type = Q_A; q_class = Q_IN; q_unicast = Q_Normal }] in
+  let questions = [ { q_name = Vpnkit_dns.Name.of_string name; q_type = Q_A; q_class = Q_IN; q_unicast = Q_Normal }] in
   let answers = [] and authorities = [] and additionals = [] in
   { id; detail; questions; answers; authorities; additionals }
 
@@ -230,7 +230,7 @@ let truncate_big_response () =
     let ip = Ipaddr.V4 Ipaddr.V4.localhost in
     (* The DNS response will be over 512 bytes *)
     let answers = Array.to_list @@ Array.make 64
-      { Dns.Packet.name = Dns.Name.of_string "anything"; cls = RR_IN;
+      { Vpnkit_dns.Packet.name = Vpnkit_dns.Name.of_string "anything"; cls = RR_IN;
         flush = false; ttl = 0l; rdata = A Ipaddr.V4.localhost } in
     Server.with_server ip answers
       (fun port ->
@@ -245,18 +245,18 @@ let truncate_big_response () =
         set_dns_policy config;
         Lwt.finalize
           (fun () ->
-            udp_rpc client 1024 primary_dns_ip 53 (Dns.Packet.marshal @@ query_a "very.big.name")
+            udp_rpc client 1024 primary_dns_ip 53 (Vpnkit_dns.Packet.marshal @@ query_a "very.big.name")
             >>= fun response ->
             Log.err (fun f -> f "UDP response has length %d" (Cstruct.length response));
-            begin match Dns.Protocol.Server.parse response with
+            begin match Vpnkit_dns.Protocol.Server.parse response with
             | None ->
               failwith "failed to parse truncated DNS response"
-            | Some { Dns.Packet.detail = { tc = true; _ }; answers; _ } ->
+            | Some { Vpnkit_dns.Packet.detail = { tc = true; _ }; answers; _ } ->
               Log.info (fun f -> f "DNS response has truncated bit set");
               if List.length answers <> 29
               then failwith (Printf.sprintf "expected 29 answers, got %d" (List.length answers));
               Lwt.return_unit
-            | Some { Dns.Packet.detail = { tc = false; _ }; _ } ->
+            | Some { Vpnkit_dns.Packet.detail = { tc = false; _ }; _ } ->
               failwith "DNS response does not have truncated bit set"
             end
           ) (fun () -> reset_dns_policy (); Lwt.return_unit)

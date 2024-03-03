@@ -55,7 +55,7 @@ module Make (Clock: Mirage_clock.MCLOCK) (Netif: Mirage_net.S) = struct
     let get_dhcp_configuration () =
       (* The domain search is encoded using the scheme used for DNS names *)
       let domain_search =
-        let open Dns in
+        let open Vpnkit_dns in
         let b = Cstruct.create 1024 in
         let _, n, _ = List.fold_left (fun (map, n, buffer) name ->
             Name.marshal map n buffer (Name.of_string name)

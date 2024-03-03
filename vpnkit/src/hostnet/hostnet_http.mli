@@ -41,7 +41,7 @@ sig
   (** [to_json t] encodes [t] into json *)
 
   val transparent_proxy_handler:
-    localhost_names:Dns.Name.t list ->
+    localhost_names:Vpnkit_dns.Name.t list ->
     localhost_ips:Ipaddr.t list ->
     dst:(Ipaddr.V4.t * int) -> t:t ->
     (int -> (Tcp.flow -> unit Lwt.t) option) Lwt.t option
@@ -49,7 +49,7 @@ sig
       if one is defined. *)
 
   val explicit_proxy_handler:
-    localhost_names:Dns.Name.t list ->
+    localhost_names:Vpnkit_dns.Name.t list ->
     localhost_ips:Ipaddr.t list ->
     dst:(Ipaddr.V4.t * int) -> t:t ->
     (int -> (Tcp.flow -> unit Lwt.t) option) Lwt.t option

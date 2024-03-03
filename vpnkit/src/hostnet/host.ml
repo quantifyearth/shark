@@ -1299,21 +1299,21 @@ module Dns = struct
         Lwt.return []
     | Ok ips -> Lwt.return ips
 
-  let localhost_local = Dns.Name.of_string "localhost.local"
+  let localhost_local = Vpnkit_dns.Name.of_string "localhost.local"
 
   let resolve_getaddrinfo question =
-    let open Dns.Packet in
+    let open Vpnkit_dns.Packet in
     (match question with
     | { q_class = Q_IN; q_name; _ } when q_name = localhost_local ->
         Log.debug (fun f -> f "DNS lookup of localhost.local: return NXDomain");
         Lwt.return (q_name, [])
     | { q_class = Q_IN; q_type = Q_A; q_name; _ } ->
-        getaddrinfo (Dns.Name.to_string q_name) `INET >>= fun ips ->
+        getaddrinfo (Vpnkit_dns.Name.to_string q_name) `INET >>= fun ips ->
         Lwt.return (q_name, ips)
     | { q_class = Q_IN; q_type = Q_AAAA; q_name; _ } ->
-        getaddrinfo (Dns.Name.to_string q_name) `INET6 >>= fun ips ->
+        getaddrinfo (Vpnkit_dns.Name.to_string q_name) `INET6 >>= fun ips ->
         Lwt.return (q_name, ips)
-    | _ -> Lwt.return (Dns.Name.of_string "", []))
+    | _ -> Lwt.return (Vpnkit_dns.Name.of_string "", []))
     >>= function
     | _, [] -> Lwt.return []
     | q_name, ips ->

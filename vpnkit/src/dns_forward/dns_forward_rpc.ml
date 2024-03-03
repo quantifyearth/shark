@@ -54,7 +54,7 @@ module Client = struct
 
         let rpc (t: t) buffer =
           let buf = buffer in
-          match Dns.Protocol.Server.parse (Cstruct.sub buf 0 (Cstruct.length buffer)) with
+          match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 (Cstruct.length buffer)) with
           | Some request ->
             (* Although we aren't multiplexing requests on the same flow (unlike the
                Persistent case below) we still rewrite the request id
@@ -62,7 +62,7 @@ module Client = struct
                - to work around clients who use predictable request ids *)
 
               (* The id whose scope is the link to the client *)
-              let client_id = request.Dns.Packet.id in
+              let client_id = request.Vpnkit_dns.Packet.id in
               (* The id whose scope is the link to the server *)
               Dns_forward_free_id.with_id t.free_ids
                 (fun free_id ->
@@ -128,7 +128,7 @@ module Client = struct
       mutable client_address: address;
       mutable rw: Packet.t option;
       mutable disconnect_on_idle: unit Lwt.t;
-      wakeners: (int, Dns.Packet.question * ((Cstruct.t, [ `Msg of string ]) result Lwt.u)) Hashtbl.t;
+      wakeners: (int, Vpnkit_dns.Packet.question * ((Cstruct.t, [ `Msg of string ]) result Lwt.u)) Hashtbl.t;
       m: Lwt_mutex.t;
       free_ids: Dns_forward_free_id.t;
       message_cb: message_cb;
@@ -148,7 +148,7 @@ module Client = struct
                Hashtbl.iter (fun id (question, u) ->
                    Log.info (fun f -> f "%s %04x: disconnect: failing request for question %s"
                                 (to_string t) id
-                                (Dns.Packet.question_to_string question)
+                                (Vpnkit_dns.Packet.question_to_string question)
                             );
                    (* It's possible that the response just arrived but hasn't been
                       processed by the client thread *)
@@ -172,16 +172,16 @@ module Client = struct
             disconnect t
         | Ok buffer ->
             let buf = buffer in
-            begin match Dns.Protocol.Server.parse (Cstruct.sub buf 0 (Cstruct.length buffer)) with
-            | Some ({ Dns.Packet.questions = [ question ]; _ } as response) ->
-                let client_id = response.Dns.Packet.id in
+            begin match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 (Cstruct.length buffer)) with
+            | Some ({ Vpnkit_dns.Packet.questions = [ question ]; _ } as response) ->
+                let client_id = response.Vpnkit_dns.Packet.id in
                 if Hashtbl.mem t.wakeners client_id then begin
                   let expected_question, u = Hashtbl.find t.wakeners client_id in
                   if expected_question <> question then begin
                     Log.warn (fun f -> f "%s %04x: response arrived for a different question: expected %s <> got %s"
                                  (to_string t) client_id
-                                 (Dns.Packet.question_to_string expected_question)
-                                 (Dns.Packet.question_to_string question)
+                                 (Vpnkit_dns.Packet.question_to_string expected_question)
+                                 (Vpnkit_dns.Packet.question_to_string question)
                              )
                   end else begin
                     (* It's possible that disconnect has already failed the thread *)
@@ -234,15 +234,15 @@ module Client = struct
 
     let rpc (t: t) buffer =
       let buf = buffer in
-      match Dns.Protocol.Server.parse (Cstruct.sub buf 0 (Cstruct.length buffer)) with
-      | Some ({ Dns.Packet.questions = [ question ]; _ } as request) ->
+      match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 (Cstruct.length buffer)) with
+      | Some ({ Vpnkit_dns.Packet.questions = [ question ]; _ } as request) ->
           (* Note: the received request id is scoped to the connection with the
              client. Since we are multiplexing requests to a single server we need
              to track used/unused ids on the link to the server and remember the
              mapping to the client. *)
 
           (* The id whose scope is the link to the client *)
-          let client_id = request.Dns.Packet.id in
+          let client_id = request.Vpnkit_dns.Packet.id in
           (* The id whose scope is the link to the server *)
           Dns_forward_free_id.with_id t.free_ids
             (fun free_id ->

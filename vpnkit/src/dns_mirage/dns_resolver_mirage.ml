@@ -15,7 +15,7 @@
  *)
 
 open Lwt
-open Dns
+open Vpnkit_dns
 open Dns_resolver
 
 module DP = Packet
@@ -39,14 +39,14 @@ module type S = sig
 
   val gethostbyname : t ->
     ?server:Ipaddr.V4.t -> ?dns_port:int ->
-    ?q_class:Dns.Packet.q_class ->
-    ?q_type:Dns.Packet.q_type ->
+    ?q_class:Vpnkit_dns.Packet.q_class ->
+    ?q_type:Vpnkit_dns.Packet.q_type ->
     string -> Ipaddr.t list Lwt.t
 
   val gethostbyaddr : t ->
     ?server:Ipaddr.V4.t -> ?dns_port:int ->
-    ?q_class:Dns.Packet.q_class ->
-    ?q_type:Dns.Packet.q_type ->
+    ?q_class:Vpnkit_dns.Packet.q_class ->
+    ?q_type:Vpnkit_dns.Packet.q_type ->
     Ipaddr.V4.t -> string list Lwt.t
 end
 

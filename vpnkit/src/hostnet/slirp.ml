@@ -594,7 +594,7 @@ struct
       endpoint: Endpoint.t;
       udp_nat: Udp_nat.t;
       dns_ips: Ipaddr.V4.t list;
-      localhost_names: Dns.Name.t list;
+      localhost_names: Vpnkit_dns.Name.t list;
       localhost_ips: Ipaddr.t list;
     }
     (** Services offered by vpnkit to the internal network *)
@@ -713,7 +713,7 @@ struct
       endpoint:        Endpoint.t;
       udp_nat:         Udp_nat.t;
       icmp_nat:        Icmp_nat.t option;
-      localhost_names: Dns.Name.t list;
+      localhost_names: Vpnkit_dns.Name.t list;
       localhost_ips:   Ipaddr.t list;
     }
     (** Represents a remote system by proxying data to and from sockets *)
@@ -832,8 +832,8 @@ struct
   let http_intercept_api_handler flow =
     let module C = Mirage_channel.Make(Host.Sockets.Stream.Unix) in
     let module IO = Cohttp_mirage_io.Make(C) in
-    let module Request = Cohttp.Request.Make(IO) in
-    let module Response = Cohttp.Response.Make(IO) in
+    let module Request = Cohttp.Request.Private.Make(IO) in
+    let module Response = Cohttp.Response.Private.Make(IO) in
     let c = C.create flow in
     let write_response code status body =
       let response = "HTTP/1.0 " ^ code ^ " " ^ status ^ "\r\nConnection: closed\r\n\r\n" ^ body in

@@ -112,7 +112,7 @@ module Policy(Files: Sig.FILES) = struct
 end
 
 let try_etc_hosts =
-  let open Dns.Packet in
+  let open Vpnkit_dns.Packet in
   function
   | { q_class = Q_IN; q_type = Q_A; q_name; _ } ->
     begin
@@ -120,7 +120,7 @@ let try_etc_hosts =
           match found, ip with
           | Some v4, _           -> Some v4
           | None,   Ipaddr.V4 v4 ->
-            if Dns.Name.to_string q_name = name then Some v4 else None
+            if Vpnkit_dns.Name.to_string q_name = name then Some v4 else None
           | None,   Ipaddr.V6 _  -> None
         ) None !(Hosts.etc_hosts)
       with
@@ -134,7 +134,7 @@ let try_etc_hosts =
       match List.fold_left (fun found (name, ip) -> match found, ip with
         | Some v6, _           -> Some v6
         | None,   Ipaddr.V6 v6 ->
-          if Dns.Name.to_string q_name = name then Some v6 else None
+          if Vpnkit_dns.Name.to_string q_name = name then Some v6 else None
         | None,   Ipaddr.V4 _  -> None
         ) None !(Hosts.etc_hosts)
       with
@@ -146,7 +146,7 @@ let try_etc_hosts =
   | _ -> None
 
 let try_builtins builtin_names question =
-  let open Dns.Packet in
+  let open Vpnkit_dns.Packet in
   match question with
   | { q_class = Q_IN; q_type = (Q_A|Q_AAAA); q_name; _ } ->
     let bindings = List.filter (fun (name, _) -> name = q_name) builtin_names in
@@ -169,14 +169,14 @@ let try_builtins builtin_names question =
       if rrs = [] then begin
         Log.debug (fun f ->
           f "DNS: %s is a builtin but there are no resource records for %s"
-            (Dns.Name.to_string q_name)
+            (Vpnkit_dns.Name.to_string q_name)
             (if question.q_type = Q_A then "IPv4" else "IPv6")
         );
         `Does_not_exist (* we've claimed the name but maybe don't have an AAAA record *)
       end else begin
         Log.debug (fun f ->
-          f "DNS: %s is a builtin: %s" (Dns.Name.to_string q_name)
-            (String.concat "; " (List.map (fun rr -> Dns.Packet.rr_to_string rr) rrs))
+          f "DNS: %s is a builtin: %s" (Vpnkit_dns.Name.to_string q_name)
+            (String.concat "; " (List.map (fun rr -> Vpnkit_dns.Packet.rr_to_string rr) rrs))
         );
         `Answers rrs
       end
@@ -227,7 +227,7 @@ struct
 
   type t = {
     local_ip: Ipaddr.t;
-    builtin_names: (Dns.Name.t * Ipaddr.t) list;
+    builtin_names: (Vpnkit_dns.Name.t * Ipaddr.t) list;
     resolver: resolver;
   }
 
@@ -310,7 +310,7 @@ struct
     Log.info (fun f ->
       let suffix = match builtin_names with
         | [] -> "no builtin DNS names; everything will be forwarded"
-        | _ -> Printf.sprintf "builtin DNS names [ %s ]" (String.concat ", " @@ List.map (fun (name, ip) -> Dns.Name.to_string name ^ " -> " ^ (Ipaddr.to_string ip)) builtin_names) in
+        | _ -> Printf.sprintf "builtin DNS names [ %s ]" (String.concat ", " @@ List.map (fun (name, ip) -> Vpnkit_dns.Name.to_string name ^ " -> " ^ (Ipaddr.to_string ip)) builtin_names) in
       f "DNS server configured with %s" suffix);
     function
     | `Upstream config ->
@@ -359,31 +359,31 @@ struct
       loop low high
 
   let answer t is_tcp buf =
-    let open Dns.Packet in
+    let open Vpnkit_dns.Packet in
     let len = Cstruct.length buf in
-    match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+    match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
     | None ->
       Lwt.return (Error (`Msg "failed to parse DNS packet"))
     | Some ({ questions = [ question ]; _ } as request) ->
       let reply ~tc answers =
         let id = request.id in
         let detail =
-          { request.detail with Dns.Packet.qr = Dns.Packet.Response; ra = true; tc }
+          { request.detail with Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response; ra = true; tc }
         in
         let questions = request.questions in
         let authorities = [] and additionals = [] in
-        { Dns.Packet.id; detail; questions; answers; authorities; additionals }
+        { Vpnkit_dns.Packet.id; detail; questions; answers; authorities; additionals }
       in
       let nxdomain =
         let id = request.id in
         let detail =
-          { request.detail with Dns.Packet.qr = Dns.Packet.Response;
-                                ra = true; rcode = Dns.Packet.NXDomain
+          { request.detail with Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response;
+                                ra = true; rcode = Vpnkit_dns.Packet.NXDomain
           } in
         let questions = request.questions in
         let authorities = [] and additionals = [] and answers = []
         in
-        { Dns.Packet.id; detail; questions; answers; authorities;
+        { Vpnkit_dns.Packet.id; detail; questions; answers; authorities;
           additionals }
       in
       let marshal_reply answers =
@@ -436,7 +436,7 @@ struct
                 | Error e -> Lwt.return (Error e)
                 | Ok buf ->
                   (* We need to parse and re-marshal so we can set the TC bit and truncate *)
-                  begin match Dns.Protocol.Server.parse buf with
+                  begin match Vpnkit_dns.Protocol.Server.parse buf with
                   | None ->
                     Lwt.return (Error (`Msg "Failed to unmarshal DNS response from upstream"))
                   | Some { answers; _ } ->
@@ -456,9 +456,9 @@ struct
 
   let describe buf =
     let len = Cstruct.length buf in
-    match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+    match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
     | None -> Printf.sprintf "Unparsable DNS packet length %d" len
-    | Some request -> Dns.Packet.to_string request
+    | Some request -> Vpnkit_dns.Packet.to_string request
 
   let handle_udp ~t ~udp ~src ~dst:_ ~src_port buf =
     answer t false buf

@@ -147,9 +147,9 @@ module Make
   let resolve_ip name_or_ip =
     match Ipaddr.of_string name_or_ip with
     | Error _ ->
-      let open Dns.Packet in
+      let open Vpnkit_dns.Packet in
       let question =
-        make_question ~q_class:Q_IN Q_A (Dns.Name.of_string name_or_ip)
+        make_question ~q_class:Q_IN Q_A (Vpnkit_dns.Name.of_string name_or_ip)
       in
       Dns_resolver.resolve question
       >>= fun rrs ->
@@ -233,14 +233,14 @@ module Make
   module Incoming = struct
     module C = Mirage_channel.Make(Tcp)
     module IO = Cohttp_mirage_io.Make(C)
-    module Request = Cohttp.Request.Make(IO)
-    module Response = Cohttp.Response.Make(IO)
+    module Request = Cohttp.Request.Private.Make(IO)
+    module Response = Cohttp.Response.Private.Make(IO)
   end
   module Outgoing = struct
     module C = Mirage_channel.Make(Remote)
     module IO = Cohttp_mirage_io.Make(C)
-    module Request = Cohttp.Request.Make(IO)
-    module Response = Cohttp.Response.Make(IO)
+    module Request = Cohttp.Request.Private.Make(IO)
+    module Response = Cohttp.Response.Private.Make(IO)
   end
 
   (* Since we've already layered a channel on top, we can't use the Mirage_flow.proxy
@@ -255,7 +255,7 @@ module Make
       let rec loop () =
         Lwt.catch
           (fun () ->
-            Outgoing.C.read_some outgoing >>= function
+            Outgoing.(** Cohttp IO implementation using Mirage channels. *)C.read_some outgoing >>= function
               | Ok `Eof        -> Lwt.return false
               | Error e        -> warn Outgoing.C.pp_error e; Lwt.return false
               | Ok (`Data buf) ->
@@ -331,7 +331,7 @@ module Make
         let reader = Incoming.Request.make_body_reader req incoming in
         Log.info (fun f -> f "Outgoing.Request.write");
         Outgoing.Request.write ~flush:true (fun writer ->
-            match Incoming.Request.has_body req with
+            match Cohttp.Request.has_body req with
             | `Yes     -> proxy_body_request_exn ~reader ~writer
             | `No      -> Lwt.return_unit
             | `Unknown ->
@@ -382,7 +382,7 @@ module Make
             (* Otherwise stay in HTTP mode *)
             let reader = Outgoing.Response.make_body_reader res outgoing in
             Incoming.Response.write ~flush:true (fun writer ->
-                match Cohttp.Request.meth req, Incoming.Response.has_body res with
+                match Cohttp.Request.meth req, Cohttp.Response.has_body res with
                 | `HEAD, `Yes ->
                   (* Bug in cohttp.1.0.2: according to Section 9.4 of RFC2616
                     https://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html
@@ -431,7 +431,7 @@ module Make
       Lwt.return (Error (`Msg ("HTTP proxy URI does not include a port: " ^ (Uri.to_string proxy))))
     | Some host, Some port ->
       let host =
-        if List.mem (Dns.Name.of_string host) localhost_names
+        if List.mem (Vpnkit_dns.Name.of_string host) localhost_names
         then "localhost"
         else host in
       resolve_ip host
@@ -613,7 +613,7 @@ module Make
         Lwt.return (Error `Missing_host_header)
       | Some ((next_hop_host, next_hop_port), ty) ->
         let next_hop_host =
-          if List.mem (Dns.Name.of_string next_hop_host) localhost_names
+          if List.mem (Vpnkit_dns.Name.of_string next_hop_host) localhost_names
           then "localhost"
           else next_hop_host in
         Log.debug (fun f -> f "next_hop_address is %s:%d" next_hop_host next_hop_port);

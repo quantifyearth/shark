@@ -162,7 +162,7 @@ let to_string t =
 
 module Unix = struct
   let of_resolv_conf txt =
-    let open Dns.Resolvconf in
+    let open Vpnkit_dns.Resolvconf in
     let lines = Astring.String.cuts ~sep:"\n" txt in
     let config = List.rev @@ List.fold_left (fun acc x ->
         match map_line x with

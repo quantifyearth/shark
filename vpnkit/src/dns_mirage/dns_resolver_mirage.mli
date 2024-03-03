@@ -24,23 +24,23 @@ module type S = sig
   val create : stack -> t
 
   val resolve :
-    (module Dns.Protocol.CLIENT) ->
+    (module Vpnkit_dns.Protocol.CLIENT) ->
     t -> Ipaddr.V4.t -> int ->
-    Dns.Packet.q_class ->
-    Dns.Packet.q_type ->
-    Dns.Name.t ->
-    Dns.Packet.t Lwt.t
+    Vpnkit_dns.Packet.q_class ->
+    Vpnkit_dns.Packet.q_type ->
+    Vpnkit_dns.Name.t ->
+    Vpnkit_dns.Packet.t Lwt.t
 
   val gethostbyname : t ->
     ?server:Ipaddr.V4.t -> ?dns_port:int ->
-    ?q_class:Dns.Packet.q_class ->
-    ?q_type:Dns.Packet.q_type ->
+    ?q_class:Vpnkit_dns.Packet.q_class ->
+    ?q_type:Vpnkit_dns.Packet.q_type ->
     string -> Ipaddr.t list Lwt.t
 
   val gethostbyaddr : t ->
     ?server:Ipaddr.V4.t -> ?dns_port:int ->
-    ?q_class:Dns.Packet.q_class ->
-    ?q_type:Dns.Packet.q_type ->
+    ?q_class:Vpnkit_dns.Packet.q_class ->
+    ?q_type:Vpnkit_dns.Packet.q_type ->
     Ipaddr.V4.t -> string list Lwt.t
 end
 

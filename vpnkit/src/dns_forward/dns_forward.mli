@@ -279,7 +279,7 @@ module Resolver: sig
         the packets) then the corresponding argument will be omitted *)
 
     val create:
-      ?local_names_cb:(Dns.Packet.question -> Dns.Packet.rr list option Lwt.t) ->
+      ?local_names_cb:(Vpnkit_dns.Packet.question -> Vpnkit_dns.Packet.rr list option Lwt.t) ->
       gen_transaction_id:(int -> int) ->
       ?message_cb:message_cb ->
       Config.t -> t Lwt.t

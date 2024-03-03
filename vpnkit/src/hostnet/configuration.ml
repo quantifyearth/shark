@@ -51,9 +51,9 @@ type t = {
   http_intercept: Ezjsonm.value option;
   http_intercept_path: string option;
   port_max_idle_time: int;
-  host_names: Dns.Name.t list;
-  gateway_names: Dns.Name.t list;
-  vm_names: Dns.Name.t list;
+  host_names: Vpnkit_dns.Name.t list;
+  gateway_names: Vpnkit_dns.Name.t list;
+  vm_names: Vpnkit_dns.Name.t list;
   udpv4_forwards: Gateway_forwards.t;
   tcpv4_forwards: Gateway_forwards.t;
   gateway_forwards_path: string option;
@@ -80,9 +80,9 @@ let to_string t =
     (match t.http_intercept with None -> "None" | Some x -> Ezjsonm.(to_string @@ wrap x))
     (match t.http_intercept_path with None -> "None" | Some x -> x)
     (string_of_int t.port_max_idle_time)
-    (String.concat ", " (List.map Dns.Name.to_string t.host_names))
-    (String.concat ", " (List.map Dns.Name.to_string t.gateway_names))
-    (String.concat ", " (List.map Dns.Name.to_string t.vm_names))
+    (String.concat ", " (List.map Vpnkit_dns.Name.to_string t.host_names))
+    (String.concat ", " (List.map Vpnkit_dns.Name.to_string t.gateway_names))
+    (String.concat ", " (List.map Vpnkit_dns.Name.to_string t.vm_names))
     (Gateway_forwards.to_string t.udpv4_forwards)
     (Gateway_forwards.to_string t.tcpv4_forwards)
     (match t.gateway_forwards_path with None -> "None" | Some x -> x)
@@ -103,9 +103,9 @@ let default_mtu = 1500 (* used for the virtual ethernet link *)
 let default_port_max_idle_time = 300
 (* random MAC from https://www.hellion.org.uk/cgi-bin/randmac.pl *)
 let default_server_macaddr = Macaddr.of_string_exn "F6:16:36:BC:F9:C6"
-let default_host_names = [ Dns.Name.of_string "vpnkit.host" ]
-let default_gateway_names = [ Dns.Name.of_string "gateway.internal" ]
-let default_vm_names = [ Dns.Name.of_string "vm.internal" ]
+let default_host_names = [ Vpnkit_dns.Name.of_string "vpnkit.host" ]
+let default_gateway_names = [ Vpnkit_dns.Name.of_string "gateway.internal" ]
+let default_vm_names = [ Vpnkit_dns.Name.of_string "vm.internal" ]
 let default_pcap_snaplen = 128
 
 let default_resolver = `Host

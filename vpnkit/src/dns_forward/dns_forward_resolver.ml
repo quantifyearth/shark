@@ -39,12 +39,12 @@ let is_in_domain name domain =
 module IntSet = Set.Make(struct type t = int let compare (a: int) (b: int) = compare a b end)
 
 let choose_servers config request =
-  let open Dns.Packet in
+  let open Vpnkit_dns.Packet in
   let open Dns_forward_config in
   (* Match the name in the query against the configuration *)
   begin match request with
   | { questions = [ { q_name; _ } ]; _ } ->
-      let labels = Dns.Name.to_string_list q_name in
+      let labels = Vpnkit_dns.Name.to_string_list q_name in
       let matching_servers = List.filter (fun server ->
           Domain.Set.fold (fun zone acc -> acc || (is_in_domain labels zone)) server.Server.zones false
         ) config in
@@ -95,7 +95,7 @@ struct
 
   type t = {
     connections: connection list;
-    local_names_cb: (Dns.Packet.question -> Dns.Packet.rr list option Lwt.t);
+    local_names_cb: (Vpnkit_dns.Packet.question -> Vpnkit_dns.Packet.rr list option Lwt.t);
     cache: Cache.t;
     config: Dns_forward_config.t;
   }
@@ -120,15 +120,15 @@ struct
   let answer buffer t =
     let len = Cstruct.length buffer in
     let buf = buffer in
-    let open Dns.Packet in
-    match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+    let open Vpnkit_dns.Packet in
+    match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
     | Some ({ questions = [ question ]; _ } as request) ->
 
         (* Given a set of answers (resource records), synthesize an answer to the
            current question. *)
         let reply answers =
           let id = request.id in
-          let detail = { request.detail with Dns.Packet.qr = Dns.Packet.Response; ra = true } in
+          let detail = { request.detail with Vpnkit_dns.Packet.qr = Vpnkit_dns.Packet.Response; ra = true } in
           let questions = request.questions in
           let authorities = [] and additionals = [] in
           { id; detail; questions; answers; authorities; additionals } in
@@ -209,7 +209,7 @@ struct
                              then insert the value into the cache. *)
                           let len = Cstruct.length reply in
                           let buf = reply in
-                          begin match Dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
+                          begin match Vpnkit_dns.Protocol.Server.parse (Cstruct.sub buf 0 len) with
                           | Some { detail = { rcode = NoError; _ }; answers = ((_ :: _) as answers); _ } ->
                               Cache.insert t.cache address question answers;
                               Lwt.return (Ok (`Success reply))

@@ -52,6 +52,12 @@ module Make (Channel: Mirage_channel.S) = struct
     (* NOOP since we flush in the normal writer functions above *)
     Lwt.return_unit
 
+  (* stubs *)
+  let refill _ = Lwt.return `Ok
+  let with_input_buffer _ ~f =
+    let res, _consumed = f "" ~pos:0 ~len:0 in
+    res
+
   let  (>>= ) = Lwt.( >>= )
   let return = Lwt.return
 
