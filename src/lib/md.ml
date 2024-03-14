@@ -112,15 +112,17 @@ let process_block alias_hash_map store conf (code_block, block) =
         stage ~from:(`Build build_hash) [ run "%s" command ]
       in
       let process (outputs, build_hash) command =
-        Logs.info (fun f -> f "Running spec %a" Obuilder_spec.pp (spec build_hash command));
+        Logs.info (fun f ->
+            f "Running spec %a" Obuilder_spec.pp (spec build_hash command));
         let buf = Buffer.create 128 in
         let log = log buf in
         let context = Obuilder.Context.v ~log ~src_dir:"." () in
         Builder.build builder context (spec build_hash command) >>= function
-        | Ok id -> Lwt.return ((id, Buffer.contents buf)::outputs, id)
+        | Ok id -> Lwt.return ((id, Buffer.contents buf) :: outputs, id)
         | Error _ -> failwith "Procressing failed"
       in
-      Lwt_list.fold_left_s process ([], build) commands_stripped >>= fun (ids_and_output, _hash) ->
+      Lwt_list.fold_left_s process ([], build) commands_stripped
+      >>= fun (ids_and_output, _hash) ->
       let ids_and_output = List.rev ids_and_output in
       let id = List.hd ids_and_output |> fst in
       let body =

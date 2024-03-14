@@ -8,6 +8,26 @@ module Store_spec = Obuilder.Store_spec
 
 let await = Lwt_eio.Promise.await_lwt
 
+let store_of_string = function
+  | (`Btrfs _ | `Zfs _) as v -> v
+  | `Rsync path -> `Rsync (path, Obuilder.Rsync_store.Copy)
+
+let config_path =
+  match Sys.getenv_opt "SHARK_CONFIG" with
+  | Some config -> config
+  | None -> (
+      match Sys.getenv_opt "HOME" with
+      | Some home -> Filename.concat home ".shark"
+      | None -> failwith "No SHARK_CONFIG or HOME environment variables")
+
+let store_or_default v =
+  match Option.map store_of_string v with
+  | Some store -> Obuilder.Store_spec.to_store store
+  | None ->
+      let config = In_channel.with_open_bin config_path In_channel.input_all in
+      let config = Shark.Config.t_of_sexp (Sexplib.Sexp.of_string config) in
+      Obuilder.Store_spec.to_store config.store
+
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
@@ -42,6 +62,7 @@ let read_whole_file path =
 
 let build () store spec conf src_dir secrets =
   run_eventloop @@ fun () ->
+  let store = store_or_default store in
   let (Builder ((module Builder), builder)) = create_builder store conf in
   Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
   let spec =
@@ -67,6 +88,7 @@ let build () store spec conf src_dir secrets =
 
 let run () store conf id =
   run_eventloop @@ fun () ->
+  let store = store_or_default store in
   let (Builder ((module Builder), builder)) = create_builder store conf in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let _, v = Builder.shell builder id in
@@ -84,6 +106,7 @@ let option_get = function Some v -> v | None -> failwith "Dumbass!"
 
 let md () store conf file =
   run_eventloop @@ fun () ->
+  let store = store_or_default store in
   let (Builder ((module Builder), builder)) = create_builder store conf in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let doc =
@@ -98,10 +121,13 @@ let md () store conf file =
     alias_hash_map := (blk.alias, option_get blk.hash) :: !alias_hash_map;
     cb
   in
-
   let document = Shark.Md.map_blocks doc fn in
   Fmt.pr "%s" (Cmarkit_commonmark.of_doc document);
   Lwt.return_unit
+
+let config () =
+  let config = Shark.Config.{ store = `Zfs "obuilder-zfs" } in
+  Fmt.pr "%a" Sexplib.Sexp.pp_hum (Shark.Config.sexp_of_t config)
 
 open Cmdliner
 
@@ -132,7 +158,11 @@ let src_dir =
   @@ Arg.pos 0 Arg.(some dir) None
   @@ Arg.info ~doc:"Directory containing the source files." ~docv:"DIR" []
 
-let store = Store_spec.cmdliner
+let store =
+  Arg.value
+  @@ Arg.opt Arg.(some Store_spec.store_t) None
+  @@ Arg.info ~doc:"Store for shark, defaults to configuration file."
+       ~docv:"STORE" [ "store" ]
 
 let id =
   Arg.required
@@ -166,7 +196,12 @@ let md =
     Term.(
       const md $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ markdown_file)
 
-let cmds = [ build; run; md ]
+let config =
+  let doc = "Parse a config or generate the default" in
+  let info = Cmd.info "config" ~doc in
+  Cmd.v info Term.(const config $ setup_log)
+
+let cmds = [ build; run; md; config ]
 
 let () =
   let doc = "a command-line interface for Shark" in

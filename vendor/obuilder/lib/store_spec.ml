@@ -1,12 +1,13 @@
 (** Configuration information to set up a store. *)
 
 open Lwt.Infix
+open Sexplib.Conv
 
 type t = [
   | `Btrfs of string  (* Path *)
   | `Zfs of string    (* Path with pool at end *)
   | `Rsync of (string * Rsync_store.mode)  (* Path for the root of the store *)
-]
+][@@deriving sexp]
 
 let is_absolute path = not (Filename.is_relative path)
 

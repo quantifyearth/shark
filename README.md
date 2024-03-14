@@ -40,6 +40,16 @@ interactive shell. Once you have the ID of the build you can drop in.
 shark run --store=zfs:obuilder-zfs 7ddfd6bfe7de83bd0ccdc763077b8088343182a33724d5387a906ac6a941b552
 ```
 
+## Configuration
+
+A lot of the commands to shark CLI commands can get repetitive. You might want to place a configuration
+file in your home directory under `~/.shark`. A default is provided from the command line.
+
+```sh
+$ shark config
+((store (Zfs obuilder-zfs)))
+```
+
 ## Markdown Support 
 
 Another mode of operation for Shark is via markdown files. Here you can use codeblocks to write

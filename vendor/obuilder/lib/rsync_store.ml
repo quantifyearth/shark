@@ -14,6 +14,7 @@ type mode =
   | Copy
   | Hardlink
   | Hardlink_unsafe
+[@@deriving sexp]
 
 type t = {
     path : string;

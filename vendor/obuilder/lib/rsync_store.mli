@@ -8,6 +8,7 @@ type mode =
   | Hardlink_unsafe (** Reasonably fast and uses less disk space, but no
                         checksum verification. Only for testing during
                         development, do not use in production. *)
+  [@@deriving sexp]
 
 val create : path:string -> ?mode:mode -> unit -> t Lwt.t
 (** [create ~path ?mode ()] creates a new rsync store where everything will
