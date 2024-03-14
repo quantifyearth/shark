@@ -1,0 +1,12 @@
+(executable
+ (name main)
+ (public_name shark)
+ (libraries
+  eio_main
+  shark
+  lwt.unix
+  obuilder
+  logs.cli
+  fmt.tty
+  fmt.cli
+  logs.fmt))

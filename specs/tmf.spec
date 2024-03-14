@@ -1,0 +1,10 @@
+((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4)
+ (run (network host)
+  (shell
+   "apt-get update -qqy && apt-get install -qy git wget libpq-dev python3-pip && rm -rf /var/lib/apt/lists/* && rm -rf /var/cache/apt/*"))
+ (run (shell "useradd -ms /bin/bash -u 1000 tmf")) 
+ (workdir /home/tmf/app)
+ (run (shell "chown -R tmf:tmf /home/tmf"))
+ (user (uid 1000) (gid 1000))
+ (run (shell "mkdir /home/tmf/app/data")) 
+ (workdir /home/tmf/app))

@@ -1,0 +1,28 @@
+# Markdown Shark Support
+
+The `shark` executable also can work with markdown documents. Two blocks can be
+used to run shell-like commands within your markdown documents. The first is
+`shark-build` commands. These allow you to specify a build script that is then
+built and can be referenced as the context for future `shark-run` blocks.
+
+## Shark Build
+
+```shark-build:gdal-env:6a7e697a4f11b2afa6fab0d82ee384761cc855abf03567ce4aea51343acc49cf
+((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4))
+```
+
+Once we have a GDAL environment available to us, when can write shell fragments
+using that environment.
+
+## Shark Run
+
+```shark-run:gdal-env
+$ gdalinfo --version > gdal.version
+$ cat gdal.version
+GDAL 3.6.4, released 2023/04/17
+
+```
+
+Of course we can make use of the pretty good networking reproducibility.
+
+
