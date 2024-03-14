@@ -65,7 +65,7 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
  |((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4))
  |```
  |
- |Once we have a GDAL environment available to us, when can write shell fragments
+ |Once we have a GDAL environment available to us, we can write shell fragments
  |using that environment.
  |
  |## Shark Run
