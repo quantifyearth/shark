@@ -1,3 +1,8 @@
 (mdx
- (deps %{bin:diff} specs/tmf.spec specs/shark.md specs/shark.out.md)
+ (deps
+  %{bin:diff}
+  specs/tmf.spec
+  specs/shark.md
+  specs/shark.out.md
+  specs/template.md)
  (files README.md))

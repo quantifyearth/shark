@@ -31,9 +31,7 @@ let store_or_default v =
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
-let run_eventloop main =
-  Eio_main.run @@ fun env ->
-  let clock = Eio.Stdenv.clock env in
+let run_eventloop ~clock main =
   Lwt_eio.with_event_loop ~debug:true ~clock @@ fun _ ->
   Lwt_eio.Promise.await_lwt (main ())
 
@@ -125,6 +123,13 @@ let md () store conf file =
   Fmt.pr "%s" (Cmarkit_commonmark.of_doc document);
   Lwt.return_unit
 
+let template ~fs () file directory =
+  run_eventloop @@ fun () ->
+  let file_path = Eio.Path.(fs / file) in
+  let directory = Eio.Path.(fs / directory) in
+  Shark.Template.template ~file_path ~directory;
+  Lwt.return_unit
+
 let config () =
   let config = Shark.Config.{ store = `Zfs "obuilder-zfs" } in
   Fmt.pr "%a" Sexplib.Sexp.pp_hum (Shark.Config.sexp_of_t config)
@@ -150,8 +155,14 @@ let spec_file =
 
 let markdown_file =
   Arg.required
-  @@ Arg.opt Arg.(some file) None
-  @@ Arg.info ~doc:"Path of markdown file." ~docv:"MD" [ "md" ]
+  @@ Arg.pos 0 Arg.(some file) None
+  @@ Arg.info ~doc:"Path of markdown file." ~docv:"MARKDOWN_FILE" []
+
+let output_directory =
+  Arg.required
+  @@ Arg.opt Arg.(some dir) None
+  @@ Arg.info ~doc:"Path of output directory for templating." ~docv:"OUTDIR"
+       [ "output-dir" ]
 
 let src_dir =
   Arg.required
@@ -175,35 +186,53 @@ let secrets =
   @@ Arg.info ~doc:"Provide a secret under the form $(b,id:file)."
        ~docv:"SECRET" [ "secret" ]
 
-let build =
+let build ~clock =
   let doc = "Build a spec file." in
   let info = Cmd.info "build" ~doc in
   Cmd.v info
     Term.(
-      const build $ setup_log $ store $ spec_file $ Obuilder.Sandbox.cmdliner
-      $ src_dir $ secrets)
+      const (build ~clock)
+      $ setup_log $ store $ spec_file $ Obuilder.Sandbox.cmdliner $ src_dir
+      $ secrets)
 
-let run =
+let run ~clock =
   let doc = "Run a shell inside a container" in
   let info = Cmd.info "run" ~doc in
   Cmd.v info
-    Term.(const run $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
+    Term.(
+      const (run ~clock) $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
 
-let md =
+let md ~clock =
   let doc = "Execute a markdown file" in
   let info = Cmd.info "md" ~doc in
   Cmd.v info
     Term.(
-      const md $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ markdown_file)
+      const (md ~clock)
+      $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ markdown_file)
+
+let template ~clock fs =
+  let doc = "Template a markdown file by replacing variables" in
+  let info = Cmd.info "template" ~doc in
+  let cmd = template ~clock ~fs in
+  Cmd.v info Term.(const cmd $ setup_log $ markdown_file $ output_directory)
 
 let config =
   let doc = "Parse a config or generate the default" in
   let info = Cmd.info "config" ~doc in
   Cmd.v info Term.(const config $ setup_log)
 
-let cmds = [ build; run; md; config ]
+let cmds env =
+  let clock = Eio.Stdenv.clock env in
+  [
+    build ~clock;
+    run ~clock;
+    md ~clock;
+    config;
+    template ~clock (Eio.Stdenv.fs env);
+  ]
 
 let () =
+  Eio_main.run @@ fun env ->
   let doc = "a command-line interface for Shark" in
   let info = Cmd.info ~doc "shark" in
-  exit (Cmd.eval @@ Cmd.group info cmds)
+  exit (Cmd.eval @@ Cmd.group info (cmds env))

@@ -1,5 +1,5 @@
 (library
  (name shark)
- (libraries eio lwt_eio cmarkit obuilder)
+ (libraries eio str yaml lwt_eio cmarkit obuilder)
  (preprocess
   (pps ppx_sexp_conv)))
