@@ -1,4 +1,4 @@
-(lang dune 3.14)
+(lang dune 3.10)
 
 (name shark)
 (using mdx 0.4)
