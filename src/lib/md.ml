@@ -11,11 +11,23 @@ module Block = struct
   [@@deriving sexp]
 
   let of_info_string ~body s =
-    match Astring.String.cut ~sep:":" s with
-    | Some ("shark-build", env) ->
-        Some { kind = `Build; hash = None; alias = env; body }
-    | Some ("shark-run", env) ->
-        Some { kind = `Run; hash = None; alias = env; body }
+    match Astring.String.cuts ~sep:":" s with
+    | "shark-build" :: rest ->
+        let env, hash =
+          match rest with
+          | [ env ] -> (env, None)
+          | [ env; hash ] -> (env, Some hash)
+          | _ -> failwith "Malformed env and hash"
+        in
+        Some { kind = `Build; hash; alias = env; body }
+    | "shark-run" :: rest ->
+        let env, hash =
+          match rest with
+          | [ env ] -> (env, None)
+          | [ env; hash ] -> (env, Some hash)
+          | _ -> failwith "Malformed env and hash"
+        in
+        Some { kind = `Run; hash; alias = env; body }
     | _ -> None
 
   let to_info_string t =
@@ -25,7 +37,7 @@ module Block = struct
         ^ match t.hash with Some hash -> ":" ^ hash | None -> "")
     | `Run -> (
         Fmt.str "shark-run:%s" t.alias
-        ^ match t.hash with Some hash -> hash | None -> "")
+        ^ match t.hash with Some hash -> ":" ^ hash | None -> "")
 
   let pp ppf v = Sexplib.Sexp.pp_hum ppf (sexp_of_t v)
 end
@@ -71,10 +83,12 @@ let create_builder spec conf =
   let builder = Builder.v ~store ~sandbox in
   Builder ((module Builder), builder)
 
-let log buffer tag msg =
+let log kind buffer tag msg =
   match tag with
-  | `Heading -> ()
-  | `Note -> ()
+  | `Heading -> (
+      match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
+  | `Note -> (
+      match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
 let process_block alias_hash_map store conf (code_block, block) =
@@ -84,7 +98,7 @@ let process_block alias_hash_map store conf (code_block, block) =
   | `Build -> (
       let spec = Obuilder_spec.t_of_sexp (Sexplib.Sexp.of_string block.body) in
       let buf = Buffer.create 128 in
-      let log = log buf in
+      let log = log `Build buf in
       let context = Obuilder.Context.v ~log ~src_dir:"." () in
       Builder.build builder context spec >>= function
       | Error `Cancelled -> failwith "Cancelled by user"
@@ -115,7 +129,7 @@ let process_block alias_hash_map store conf (code_block, block) =
         Logs.info (fun f ->
             f "Running spec %a" Obuilder_spec.pp (spec build_hash command));
         let buf = Buffer.create 128 in
-        let log = log buf in
+        let log = log `Run buf in
         let context = Obuilder.Context.v ~log ~src_dir:"." () in
         Builder.build builder context (spec build_hash command) >>= function
         | Ok id -> Lwt.return ((id, Buffer.contents buf) :: outputs, id)
@@ -134,7 +148,8 @@ let process_block alias_hash_map store conf (code_block, block) =
         |> List.map Cmarkit.Block_line.list_of_string
         |> List.concat
       in
-      let info_string = Cmarkit.Block.Code_block.info_string code_block in
+      let block = { block with hash = Some id } in
+      let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       Lwt.return
-        ( Cmarkit.Block.Code_block.make ?info_string body,
+        ( Cmarkit.Block.Code_block.make ~info_string body,
           { block with hash = Some id } )

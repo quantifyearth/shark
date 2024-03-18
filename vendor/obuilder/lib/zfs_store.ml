@@ -213,6 +213,7 @@ let build t ?base ~id fn =
 let result t id =
   let ds = Dataset.result id in
   let path = Dataset.path t ds ~snapshot:default_snapshot in
+  Logs.info (fun f -> f "Path ZFS: %s %b" path (Sys.file_exists path));
   if Sys.file_exists path then Lwt.return_some path
   else Lwt.return_none
 
