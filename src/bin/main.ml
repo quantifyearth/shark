@@ -102,7 +102,7 @@ let run () store conf id =
 
 let option_get = function Some v -> v | None -> failwith "Dumbass!"
 
-let md () store conf file =
+let md ~net ~fs () store conf file port =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
   let (Builder ((module Builder), builder)) = create_builder store conf in
@@ -120,8 +120,23 @@ let md () store conf file =
     cb
   in
   let document = Shark.Md.map_blocks doc fn in
-  Fmt.pr "%s" (Cmarkit_commonmark.of_doc document);
-  Lwt.return_unit
+  let log_warning exn = Eio.traceln "%s" (Printexc.to_string exn) in
+  Eio.Switch.run @@ fun sw ->
+  let run_server () =
+    match port with
+    | None -> Fmt.pr "%s" (Cmarkit_commonmark.of_doc document)
+    | Some port ->
+        let output_path = Eio.Path.(fs / Filename.temp_file "shark-md" "run") in
+        Eio.Path.save ~create:(`If_missing 0o644) output_path
+          (Cmarkit_commonmark.of_doc document);
+        let handler = Shark.Serve.router ~fs ~store output_path in
+        let addr = `Tcp (Eio.Net.Ipaddr.V4.any, port) in
+        Eio.traceln "Running server on %a" Eio.Net.Sockaddr.pp addr;
+        let socket = Eio.Net.listen net ~sw ~backlog:128 ~reuse_addr:true addr
+        and server = Cohttp_eio.Server.make ~callback:handler () in
+        Cohttp_eio.Server.run socket server ~on_error:log_warning
+  in
+  Lwt.return (run_server ())
 
 let template ~fs () file directory =
   run_eventloop @@ fun () ->
@@ -175,6 +190,12 @@ let store =
   @@ Arg.info ~doc:"Store for shark, defaults to configuration file."
        ~docv:"STORE" [ "store" ]
 
+let port =
+  Arg.value
+  @@ Arg.opt Arg.(some int) None
+  @@ Arg.info ~doc:"Optional port number to serve the markdown file over."
+       ~docv:"PORT" [ "port" ]
+
 let id =
   Arg.required
   @@ Arg.pos 0 Arg.(some string) None
@@ -202,13 +223,13 @@ let run ~clock =
     Term.(
       const (run ~clock) $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
 
-let md ~clock =
+let md ~net ~fs ~clock =
   let doc = "Execute a markdown file" in
   let info = Cmd.info "md" ~doc in
   Cmd.v info
     Term.(
-      const (md ~clock)
-      $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ markdown_file)
+      const (md ~net ~fs ~clock)
+      $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ markdown_file $ port)
 
 let template ~clock fs =
   let doc = "Template a markdown file by replacing variables" in
@@ -223,10 +244,12 @@ let config =
 
 let cmds env =
   let clock = Eio.Stdenv.clock env in
+  let net = Eio.Stdenv.net env in
+  let fs = Eio.Stdenv.fs env in
   [
     build ~clock;
     run ~clock;
-    md ~clock;
+    md ~clock ~net ~fs;
     config;
     template ~clock (Eio.Stdenv.fs env);
   ]

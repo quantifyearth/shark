@@ -8,7 +8,8 @@ built and can be referenced as the context for future `shark-run` blocks.
 ## Shark Build
 
 ```shark-build:gdal-env
-((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4))
+((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4)
+ (run (shell "echo 'Something for the log!'")))
 ```
 
 Once we have a GDAL environment available to us, we can write shell fragments

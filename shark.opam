@@ -18,6 +18,11 @@ depends: [
   "eio_main"
   "lwt_eio"
 
+  # Markdown Server
+  "cohttp-eio"
+  "htmlit"
+  "routes"
+
   "patdiff"   {with-test}
   "mdx"       {with-test}
   # TODO: Once vpnkit integration is here!
