@@ -1,37 +1,35 @@
 open Astring
-open Command
-open Frontmatter
-open Ordered_command
+module DataFile = Ordered_command.DataFile
 module DataFileSet = Set.Make (DataFile)
 
 let process_to_dot ppf command =
   (* let node_style = process_style node.style in *)
   (* TODO - some commands like littlejohn get different box styles*)
-  let process_index = OrderedCommand.id command in
+  let process_index = Ordered_command.id command in
   List.iter
     (fun datafile ->
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n"
         (DataFile.id datafile) process_index)
-    (OrderedCommand.inputs command);
+    (Ordered_command.inputs command);
   Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n" process_index "box"
-    (Uri.pct_encode (Command.name (OrderedCommand.command command)));
+    (Uri.pct_encode (Command.name (Ordered_command.command command)));
   List.iter
     (fun datafile ->
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n" process_index
         (DataFile.id datafile))
-    (OrderedCommand.outputs command);
+    (Ordered_command.outputs command);
   Format.fprintf ppf "\n"
 
 let datafile_to_dot ppf datafile =
   Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n"
     (DataFile.id datafile) (DataFile.path datafile)
 
-let project_to_dot ppf (project : OrderedCommand.t list) : unit =
+let project_to_dot ppf (project : Ordered_command.t list) : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
     (fun command ->
-      let inputs = OrderedCommand.inputs command
-      and outputs = OrderedCommand.outputs command in
+      let inputs = Ordered_command.inputs command
+      and outputs = Ordered_command.outputs command in
       List.concat [ inputs; outputs ])
     project
   |> DataFileSet.of_list
@@ -85,6 +83,6 @@ let render ~template_markdown =
   List.map Block.command_list ast
   |> List.concat
   |> List.filter_map Command.of_string
-  |> OrderedCommand.order_command_list metadata
+  |> Ordered_command.order_command_list metadata
   |> project_to_dot Format.str_formatter;
   Format.flush_str_formatter ()
