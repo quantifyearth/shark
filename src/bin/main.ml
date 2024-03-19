@@ -102,7 +102,7 @@ let run () store conf id =
 
 let option_get = function Some v -> v | None -> failwith "Dumbass!"
 
-let md ~net ~fs () store conf file port =
+let md ~proc ~net ~fs () no_run store conf file port =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
   let (Builder ((module Builder), builder)) = create_builder store conf in
@@ -112,12 +112,14 @@ let md ~net ~fs () store conf file port =
     Cmarkit.Doc.of_string (In_channel.input_all ic)
   in
   let fn alias_hash_map code_block block =
-    let cb, blk =
-      Lwt_eio.Promise.await_lwt
-      @@ Shark.Md.process_block !alias_hash_map store conf (code_block, block)
-    in
-    alias_hash_map := (blk.alias, option_get blk.hash) :: !alias_hash_map;
-    cb
+    if no_run then code_block
+    else
+      let cb, blk =
+        Lwt_eio.Promise.await_lwt
+        @@ Shark.Md.process_block !alias_hash_map store conf (code_block, block)
+      in
+      alias_hash_map := (blk.alias, option_get blk.hash) :: !alias_hash_map;
+      cb
   in
   let document = Shark.Md.map_blocks doc fn in
   let log_warning exn = Eio.traceln "%s" (Printexc.to_string exn) in
@@ -129,7 +131,7 @@ let md ~net ~fs () store conf file port =
         let output_path = Eio.Path.(fs / Filename.temp_file "shark-md" "run") in
         Eio.Path.save ~create:(`If_missing 0o644) output_path
           (Cmarkit_commonmark.of_doc document);
-        let handler = Shark.Serve.router ~fs ~store output_path in
+        let handler = Shark.Serve.router ~proc ~fs ~store output_path in
         let addr = `Tcp (Eio.Net.Ipaddr.V4.any, port) in
         Eio.traceln "Running server on %a" Eio.Net.Sockaddr.pp addr;
         let socket = Eio.Net.listen net ~sw ~backlog:128 ~reuse_addr:true addr
@@ -152,7 +154,9 @@ let config () =
 let dot ~fs () file =
   run_eventloop @@ fun () ->
   let file_path = Eio.Path.(fs / file) in
-  Shark.Dotrenderer.render ~file_path;
+  let template_markdown = Eio.Path.load file_path in
+  let s = Shark.Dotrenderer.render ~template_markdown in
+  Format.pp_print_string Format.std_formatter s;
   Lwt.return_unit
 
 open Cmdliner
@@ -196,6 +200,10 @@ let store =
   @@ Arg.info ~doc:"Store for shark, defaults to configuration file."
        ~docv:"STORE" [ "store" ]
 
+let no_run =
+  Arg.value @@ Arg.flag
+  @@ Arg.info ~doc:"Don't run any code blocks in the markdown file" [ "no-run" ]
+
 let port =
   Arg.value
   @@ Arg.opt Arg.(some int) None
@@ -229,13 +237,14 @@ let run ~clock =
     Term.(
       const (run ~clock) $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
 
-let md ~net ~fs ~clock =
+let md ~proc ~net ~fs ~clock =
   let doc = "Execute a markdown file" in
   let info = Cmd.info "md" ~doc in
   Cmd.v info
     Term.(
-      const (md ~net ~fs ~clock)
-      $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ markdown_file $ port)
+      const (md ~proc ~net ~fs ~clock)
+      $ setup_log $ no_run $ store $ Obuilder.Sandbox.cmdliner $ markdown_file
+      $ port)
 
 let template ~clock fs =
   let doc = "Template a markdown file by replacing variables" in
@@ -258,10 +267,11 @@ let cmds env =
   let clock = Eio.Stdenv.clock env in
   let net = Eio.Stdenv.net env in
   let fs = Eio.Stdenv.fs env in
+  let proc = Eio.Stdenv.process_mgr env in
   [
     build ~clock;
     run ~clock;
-    md ~clock ~net ~fs;
+    md ~proc ~clock ~net ~fs;
     config;
     template ~clock (Eio.Stdenv.fs env);
     dot ~clock ~fs;

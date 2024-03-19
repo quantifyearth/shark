@@ -10,6 +10,10 @@ let markdown () =
 let get_el_by_id i =
   Brr.Document.find_el_by_id G.document (Jstr.of_string i) |> Option.get
 
+let document e =
+  Editor.State.doc e |> Text.to_jstr_array |> Array.to_list
+  |> Jstr.concat ~sep:(Jstr.v "\n")
+
 let init ?doc ?(exts = [||]) () =
   let open Editor in
   let config =

@@ -435,7 +435,19 @@ let serve_editor = function
       let document = Eio.Path.load md_file in
       respond_txt document
 
-let router ~fs ~store md_file (_conn : Cohttp_eio.Server.conn) request _body =
+let run_dot proc dot =
+  Eio.Process.parse_out proc
+    ~stdin:(Eio.Flow.string_source dot)
+    Eio.Buf_read.take_all [ "dot"; "-Tpng" ]
+
+let serve_dot proc _req body =
+  let template_markdown = Eio.Flow.read_all body in
+  let txt = Dotrenderer.render ~template_markdown in
+  let png = run_dot proc txt |> Base64.encode_string in
+  respond_txt png
+
+let router ~proc ~fs ~store md_file (_conn : Cohttp_eio.Server.conn) request
+    body =
   let open Routes in
   let store = Lwt_eio.Promise.await_lwt store in
   let routes =
@@ -443,6 +455,7 @@ let router ~fs ~store md_file (_conn : Cohttp_eio.Server.conn) request _body =
       route nil (serve md_file);
       route (s "editor" /? nil) (serve_editor None);
       route (s "editor" / s "file" /? nil) (serve_editor (Some md_file));
+      route (s "editor" / s "dot" /? nil) (serve_dot proc request body);
       route (s "logs" / str /? nil) (serve_logs fs store);
       route
         (s "files" / str /? nil)
