@@ -40,8 +40,8 @@ let project_to_dot ppf (project : Ordered_command.t list) : unit =
 
 let parse_frontmatter frontmatter =
   match Frontmatter.of_string frontmatter with
-  | Some frontmatter -> frontmatter
-  | None -> failwith "Failed to parse frontmatter\n"
+  | Ok frontmatter -> frontmatter
+  | Error (`Msg m) -> failwith ("Failed to parse frontmatter: " ^ m)
 
 let parse_markdown (markdown : string) : Block.t list =
   let doc = Cmarkit.Doc.of_string markdown in

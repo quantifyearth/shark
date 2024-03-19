@@ -111,12 +111,12 @@ let md ~proc ~net ~fs () no_run store conf file port =
     In_channel.with_open_bin file @@ fun ic ->
     Cmarkit.Doc.of_string (In_channel.input_all ic)
   in
-  let f alias_hash_map code_block block =
+  let f ~alias_hash_map code_block block =
     if no_run then code_block
     else
       let cb, blk =
         Lwt_eio.Promise.await_lwt
-        @@ Shark.Md.process_block !alias_hash_map store conf
+        @@ Shark.Md.process_block ~alias_hash_map:!alias_hash_map store conf
              (code_block, block)
       in
       alias_hash_map :=
@@ -124,7 +124,7 @@ let md ~proc ~net ~fs () no_run store conf file port =
         :: !alias_hash_map;
       cb
   in
-  let document = Shark.Md.map_blocks doc f in
+  let document = Shark.Md.map_blocks doc ~f in
   let log_warning exn = Eio.traceln "%s" (Printexc.to_string exn) in
   Eio.Switch.run @@ fun sw ->
   let run_server () =

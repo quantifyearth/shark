@@ -1,6 +1,6 @@
 open Lwt.Infix
 
-let map_blocks (doc : Cmarkit.Doc.t) fn =
+let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let alias_hash_map = ref [] in
   let block _mapper = function
     | Cmarkit.Block.Code_block (node, meta) -> (
@@ -13,7 +13,7 @@ let map_blocks (doc : Cmarkit.Doc.t) fn =
             in
             match Block.of_info_string ~body s with
             | Some block ->
-                let new_block = fn alias_hash_map node block in
+                let new_block = f ~alias_hash_map node block in
                 `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
             | None -> `Default))
     | _ -> `Default
@@ -49,7 +49,7 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_block alias_hash_map store conf (code_block, block) =
+let process_block ~alias_hash_map store conf (code_block, block) =
   create_builder store conf >>= fun (Builder ((module Builder), builder)) ->
   Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
   match Block.kind block with
