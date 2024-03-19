@@ -1,5 +1,7 @@
 (mdx
+ (package shark)
  (deps
+  %{bin:shark}
   %{bin:diff}
   specs/tmf.spec
   specs/shark.md
