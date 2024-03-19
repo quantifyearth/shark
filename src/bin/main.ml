@@ -149,6 +149,12 @@ let config () =
   let config = Shark.Config.{ store = `Zfs "obuilder-zfs" } in
   Fmt.pr "%a" Sexplib.Sexp.pp_hum (Shark.Config.sexp_of_t config)
 
+let dot ~fs () file =
+  run_eventloop @@ fun () ->
+  let file_path = Eio.Path.(fs / file) in
+  Shark.Dotrenderer.render ~file_path;
+  Lwt.return_unit
+
 open Cmdliner
 
 let setup_log style_renderer level =
@@ -242,6 +248,12 @@ let config =
   let info = Cmd.info "config" ~doc in
   Cmd.v info Term.(const config $ setup_log)
 
+let dot ~clock ~fs =
+  let doc = "Render a markdown file as a graph" in
+  let info = Cmd.info "dot" ~doc in
+  let cmd = dot ~clock ~fs in
+  Cmd.v info Term.(const cmd $ setup_log $ markdown_file)
+
 let cmds env =
   let clock = Eio.Stdenv.clock env in
   let net = Eio.Stdenv.net env in
@@ -252,6 +264,7 @@ let cmds env =
     md ~clock ~net ~fs;
     config;
     template ~clock (Eio.Stdenv.fs env);
+    dot ~clock ~fs;
   ]
 
 let () =
