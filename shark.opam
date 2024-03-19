@@ -23,6 +23,7 @@ depends: [
   "cohttp-eio"
   "htmlit"
   "routes"
+  "code-mirror"
 
   "patdiff"   {with-test}
   "mdx"       {with-test}
@@ -44,4 +45,7 @@ build: [
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
+]
+pin-depends:[
+  [ "code-mirror.dev" "git+https://github.com/patricoferris/jsoo-code-mirror#0cd3d0aa4ca454ece5b59f45a8caadb8e1874151"]
 ]

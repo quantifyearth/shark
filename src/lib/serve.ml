@@ -1,23 +1,5 @@
 open Htmlit
 
-let html ~title ~css body =
-  Fmt.str
-    {|<!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>%s</title>
-    <style>%s</style>
-  </head>
-  <body>
-  %s</body>
-  </html>|}
-    title css
-    (match body with
-    | `String s -> s
-    | `Html body -> El.to_string ~doctype:false body)
-
 let file =
   El.unsafe_raw
     {| <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/><path d="M14 3v5h5M16 13H8M16 17H8M10 9H8"/></svg> |}
@@ -308,11 +290,17 @@ let custom_document_renderer _ = function
   | _ -> `Default
 
 let html_headers = Http.Header.of_list [ ("content-type", "text/html") ]
+let text_headers = Http.Header.of_list [ ("content-type", "text/plain") ]
 
 let respond_html html =
   Cohttp_eio.Server.respond ~status:`OK
     ~body:(Cohttp_eio.Body.of_string html)
     ~headers:html_headers ()
+
+let respond_txt html =
+  Cohttp_eio.Server.respond ~status:`OK
+    ~body:(Cohttp_eio.Body.of_string html)
+    ~headers:text_headers ()
 
 let respond_not_found =
   Cohttp_eio.Server.respond ~status:`Not_found
@@ -326,7 +314,7 @@ let serve markdown_file =
     Cmarkit.Doc.of_string md
     |> Cmarkit.Mapper.map_doc mapper
     |> Cmarkit_html.of_doc ~safe:false
-    |> fun s -> html ~title:"shark md" ~css:built_in_css (`String s)
+    |> fun s -> Html.html ~title:"shark md" ~css:built_in_css (`String s)
   in
   respond_html html
 
@@ -341,7 +329,7 @@ let serve_logs fs (Obuilder.Store_spec.Store ((module Store), store)) hash =
         El.pre [ El.code [ El.txt ("Log: " ^ log) ] ];
       ]
   in
-  respond_html (html ~title:"logs" ~css:built_in_css (`Html log_code))
+  respond_html (Html.html ~title:"logs" ~css:built_in_css (`Html log_code))
 
 type file = {
   name : string;
@@ -361,7 +349,7 @@ let serve_files fs (Obuilder.Store_spec.Store ((module Store), store)) hash dir
   match Lwt_eio.Promise.await_lwt @@ Store.result store hash with
   | None ->
       respond_html
-        (html ~title:"Files" ~css:built_in_css
+        (Html.html ~title:"Files" ~css:built_in_css
            (`Html (El.p [ El.txt "No result!" ])))
   | Some path ->
       let get_files_from_directory directory =
@@ -439,14 +427,35 @@ let serve_files fs (Obuilder.Store_spec.Store ((module Store), store)) hash dir
                  files);
           ]
       in
-      respond_html (html ~title:"logs" ~css:built_in_css (`Html log_code))
+      respond_html (Html.html ~title:"logs" ~css:built_in_css (`Html log_code))
 
-let router ~fs ~store md_file (_conn : Cohttp_eio.Server.conn) request _body =
+let serve_editor = function
+  | None -> respond_html Editor.html
+  | Some md_file ->
+      let document = Eio.Path.load md_file in
+      respond_txt document
+
+let run_dot proc dot =
+  Eio.Process.parse_out proc
+    ~stdin:(Eio.Flow.string_source dot)
+    Eio.Buf_read.take_all [ "dot"; "-Tpng" ]
+
+let serve_dot proc _req body =
+  let template_markdown = Eio.Flow.read_all body in
+  let txt = Dotrenderer.render ~template_markdown in
+  let png = run_dot proc txt |> Base64.encode_string in
+  respond_txt png
+
+let router ~proc ~fs ~store md_file (_conn : Cohttp_eio.Server.conn) request
+    body =
   let open Routes in
   let store = Lwt_eio.Promise.await_lwt store in
   let routes =
     [
       route nil (serve md_file);
+      route (s "editor" /? nil) (serve_editor None);
+      route (s "editor" / s "file" /? nil) (serve_editor (Some md_file));
+      route (s "editor" / s "dot" /? nil) (serve_dot proc request body);
       route (s "logs" / str /? nil) (serve_logs fs store);
       route
         (s "files" / str /? nil)
