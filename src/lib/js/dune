@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (modes js)
+ (libraries code-mirror code-mirror.lint))

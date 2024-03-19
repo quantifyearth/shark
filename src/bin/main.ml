@@ -138,8 +138,8 @@ let md ~net ~fs () store conf file port =
   in
   Lwt.return (run_server ())
 
-let template ~fs () file directory =
-  run_eventloop @@ fun () ->
+let template ~clock ~fs () file directory =
+  run_eventloop ~clock @@ fun () ->
   let file_path = Eio.Path.(fs / file) in
   let directory = Eio.Path.(fs / directory) in
   Shark.Template.template ~file_path ~directory;
