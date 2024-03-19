@@ -1,5 +1,4 @@
 open Astring
-open Block
 open Command
 open Frontmatter
 open Ordered_command
@@ -63,7 +62,7 @@ let parse_markdown (markdown : string) : Block.t list =
           List.map Cmarkit.Block_line.to_string body
           |> List.map String.trim |> String.concat ~sep:"\n"
         in
-        (match Block.of_info_string body info_str with
+        (match Block.of_info_string ~body info_str with
         | Some b -> blocks := b :: !blocks
         | None -> ());
         `Default

@@ -221,10 +221,10 @@ let custom_document_renderer _ = function
       (* We're only interested in getting the hash here. *)
       let info =
         Cmarkit.Block.Code_block.info_string node |> fun v ->
-        Option.bind v (fun (v, _) -> Md.Block.of_info_string ~body:"" v)
+        Option.bind v (fun (v, _) -> Block.of_info_string ~body:"" v)
       in
       let info_block =
-        match Option.bind info (fun v -> v.hash) with
+        match Option.bind info (fun v -> Block.hash v) with
         | None ->
             Cmarkit.Block.Thematic_break
               (Cmarkit.Block.Thematic_break.make (), Cmarkit.Meta.none)
