@@ -1,48 +1,6 @@
 open Lwt.Infix
-open Sexplib0.Sexp_conv
 
-module Block = struct
-  type t = {
-    kind : [ `Build | `Run ];
-    hash : string option;
-    alias : string;
-    body : string;
-  }
-  [@@deriving sexp]
-
-  let of_info_string ~body s =
-    match Astring.String.cuts ~sep:":" s with
-    | "shark-build" :: rest ->
-        let env, hash =
-          match rest with
-          | [ env ] -> (env, None)
-          | [ env; hash ] -> (env, Some hash)
-          | _ -> failwith "Malformed env and hash"
-        in
-        Some { kind = `Build; hash; alias = env; body }
-    | "shark-run" :: rest ->
-        let env, hash =
-          match rest with
-          | [ env ] -> (env, None)
-          | [ env; hash ] -> (env, Some hash)
-          | _ -> failwith "Malformed env and hash"
-        in
-        Some { kind = `Run; hash; alias = env; body }
-    | _ -> None
-
-  let to_info_string t =
-    match t.kind with
-    | `Build -> (
-        Fmt.str "shark-build:%s" t.alias
-        ^ match t.hash with Some hash -> ":" ^ hash | None -> "")
-    | `Run -> (
-        Fmt.str "shark-run:%s" t.alias
-        ^ match t.hash with Some hash -> ":" ^ hash | None -> "")
-
-  let pp ppf v = Sexplib.Sexp.pp_hum ppf (sexp_of_t v)
-end
-
-let map_blocks (doc : Cmarkit.Doc.t) fn =
+let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let alias_hash_map = ref [] in
   let block _mapper = function
     | Cmarkit.Block.Code_block (node, meta) -> (
@@ -55,7 +13,7 @@ let map_blocks (doc : Cmarkit.Doc.t) fn =
             in
             match Block.of_info_string ~body s with
             | Some block ->
-                let new_block = fn alias_hash_map node block in
+                let new_block = f ~alias_hash_map node block in
                 `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
             | None -> `Default))
     | _ -> `Default
@@ -91,12 +49,14 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_block alias_hash_map store conf (code_block, block) =
+let process_block ~alias_hash_map store conf (code_block, block) =
   create_builder store conf >>= fun (Builder ((module Builder), builder)) ->
   Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
-  match block.Block.kind with
+  match Block.kind block with
   | `Build -> (
-      let spec = Obuilder_spec.t_of_sexp (Sexplib.Sexp.of_string block.body) in
+      let spec =
+        Obuilder_spec.t_of_sexp (Sexplib.Sexp.of_string (Block.body block))
+      in
       let buf = Buffer.create 128 in
       let log = log `Build buf in
       let context = Obuilder.Context.v ~log ~src_dir:"." () in
@@ -104,7 +64,7 @@ let process_block alias_hash_map store conf (code_block, block) =
       | Error `Cancelled -> failwith "Cancelled by user"
       | Error (`Msg m) -> failwith m
       | Ok id ->
-          let block = { block with hash = Some id } in
+          let block = Block.with_hash block id in
           let new_code_block =
             let info_string = Block.to_info_string block in
             Cmarkit.Block.Code_block.make
@@ -114,13 +74,13 @@ let process_block alias_hash_map store conf (code_block, block) =
           Lwt.return (new_code_block, block))
   | `Run ->
       let commands =
-        String.split_on_char '\n' block.body
+        String.split_on_char '\n' (Block.body block)
         |> List.filter (String.starts_with ~prefix:"$ ")
       in
       let commands_stripped =
         List.map (fun s -> String.sub s 1 (String.length s - 1)) commands
       in
-      let build = List.assoc block.alias alias_hash_map in
+      let build = List.assoc (Block.alias block) alias_hash_map in
       let spec build_hash command =
         let open Obuilder_spec in
         stage ~from:(`Build build_hash) [ run "%s" command ]
@@ -148,8 +108,6 @@ let process_block alias_hash_map store conf (code_block, block) =
         |> List.map Cmarkit.Block_line.list_of_string
         |> List.concat
       in
-      let block = { block with hash = Some id } in
+      let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
-      Lwt.return
-        ( Cmarkit.Block.Code_block.make ~info_string body,
-          { block with hash = Some id } )
+      Lwt.return (Cmarkit.Block.Code_block.make ~info_string body, block)
