@@ -110,10 +110,10 @@ let parse_markdown markdown =
   ignore (Cmarkit.Mapper.map_doc mapper doc);
 
   (* Flush last section *)
-    if (List.length !cuirrent_block_list) > 0 then (
-      let order_corrected_group = List.rev !cuirrent_block_list in
-      sections := { name = !current_section_title ; children = order_corrected_group} :: !sections
-    );
+  if (List.length !cuirrent_block_list) > 0 then (
+    let order_corrected_group = List.rev !cuirrent_block_list in
+    sections := { name = !current_section_title ; children = order_corrected_group} :: !sections
+  );
 
   List.rev !sections
 
@@ -125,17 +125,19 @@ let render ~template_markdown =
     | [ markdown ] -> (Frontmatter.empty, parse_markdown markdown)
     | _ -> failwith "Malformed frontmatter/markdown file"
   in
-  (* Initially ignore block scoping *)
-  let s : (string * (Command.t list)) list =
-  List.map (fun (sgroup : section_group) : (string * (Command.t list)) ->
-    let a : string list list = List.map Block.command_list sgroup.children in
-    let b : string list = List.concat a in
-    let c : Command.t list = List.filter_map Command.of_string b in
+  (List.map (fun sgroup ->
     (
-      sgroup.name, c
+      sgroup.name,
+      List.map Block.command_list sgroup.children
+      |> List.concat
+      |> List.filter_map Command.of_string
+      |> List.filter_map (fun c ->
+        match Command.file_args c with
+        | [] -> None
+        | _ -> Some c
+      )
     )
-  ) sections
-  in
-  let z : Ast.t = Ast.order_command_list metadata s in
-  render_ast_to_dot Format.str_formatter z;
+  ) sections)
+  |> Ast.order_command_list metadata
+  |> render_ast_to_dot Format.str_formatter;
   Format.flush_str_formatter ()
