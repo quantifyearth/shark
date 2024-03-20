@@ -21,7 +21,7 @@ case "$1" in
         sudo mkdir /rsync
         sudo chown "$(whoami)" /rsync
 
-        opam exec -- dune exec -- shark md specs/shark.md --store=rsync:/rsync --rsync-mode copy
+        opam exec -- dune exec -- shark md specs/shark.md --store=rsync:/rsync
 
         sudo rm -rf /rsync
         ;;
