@@ -17,7 +17,17 @@ case "$1" in
         sudo rm -f /tmp/zfs.img
         ;;
 
+    rsync_copy)
+        sudo chmod a+x /usr/local/bin/runc
+
+        sudo mkdir /rsync
+        sudo chown "$(whoami)" /rsync
+
+        opam exec -- dune exec -- shark md specs/shark.md
+
+        sudo rm -rf /rsync
+        ;;
     *)
-        printf "Usage: main.sh [zfs]" >&2
+        printf "Usage: main.sh [zfs|rsync_copy]" >&2
         exit 1
 esac
