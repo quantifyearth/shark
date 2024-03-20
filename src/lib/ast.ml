@@ -33,8 +33,9 @@ end
 (* Not yet an actual AST, actually an ASL :) *)
 type t = CommandGroup.t list
 
-let order_command_list (metadata : Frontmatter.t)
-    (command_groups : (string * Command.t list) list) : t =
+let to_list cg = cg
+
+let order_command_list metadata command_groups =
   let input_map =
     List.mapi
       (fun i f -> (f, DataFile.create i f))

@@ -136,5 +136,6 @@ let render ~template_markdown =
                match Command.file_args c with [] -> None | _ -> Some c) ))
     sections
   |> Ast.order_command_list metadata
+  |> Ast.to_list
   |> render_ast_to_dot Format.str_formatter;
   Format.flush_str_formatter ()
