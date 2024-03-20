@@ -27,6 +27,7 @@ depends: [
 
   "patdiff"   {with-test}
   "mdx"       {with-test}
+  "alcotest"  {with-test}
   # TODO: Once vpnkit integration is here!
   # "vpnkit"
   # for vpnkit and obuilder interop: mirage-flow and lwt

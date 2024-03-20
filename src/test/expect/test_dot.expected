@@ -1,0 +1,191 @@
+digraph{
+	n0[shape="cylinder",label="/data/tmf/jrc/zips"];
+	n1[shape="cylinder",label="/data/tmf/jrc/tif"];
+	n3[shape="cylinder",label="/data/tmf/fcc-cpcs"];
+	n5[shape="cylinder",label="/data/tmf/ecoregions/ecoregions.geojson"];
+	n7[shape="cylinder",label="/data/tmf/ecoregions"];
+	n9[shape="cylinder",label="/data/tmf/access/raw.tif"];
+	n11[shape="cylinder",label="/data/tmf/access"];
+	n13[shape="cylinder",label="/data/tmf/osm_borders.geojson"];
+	n15[shape="cylinder",label="/data/tmf/project_boundaries/123.geojson"];
+	n16[shape="cylinder",label="/data/tmf/123/buffer.geojson"];
+	n18[shape="cylinder",label="/data/tmf/123/leakage.geojson"];
+	n20[shape="cylinder",label="/data/tmf/123/luc.tif"];
+	n31[shape="cylinder",label="/data/tmf/gedi"];
+	n34[shape="cylinder",label="/data/tmf/123/carbon-density.csv"];
+	n36[shape="cylinder",label="/data/tmf/123/country-list.json"];
+	n38[shape="cylinder",label="/data/tmf/project_boundaries"];
+	n39[shape="cylinder",label="/data/tmf/project_boundaries/123/matching-area.geojson"];
+	n41[shape="cylinder",label="/data/tmf/srtm/zip"];
+	n42[shape="cylinder",label="/data/tmf/srtm/tif"];
+	n44[shape="cylinder",label="/data/tmf/slopes"];
+	n46[shape="cylinder",label="/data/tmf/rescaled-elevation"];
+	n48[shape="cylinder",label="/data/tmf/rescaled-slopes"];
+	n50[shape="cylinder",label="/data/tmf/123/countries.tif"];
+	n52[shape="cylinder",label="/data/tmf/123/k.parquet"];
+	n54[shape="cylinder",label="/data/tmf/123/matching-area.geojson"];
+	n55[shape="cylinder",label="/data/tmf/123/matches"];
+	n57[shape="cylinder",label="/data/tmf/123/matches.tif"];
+	n59[shape="cylinder",label="/data/tmf/123/matches.parquet"];
+	n61[shape="cylinder",label="/data/tmf/123/pairs"];
+	n63[shape="cylinder",label="/data/tmf/123/additionality.csv"];
+	n2[shape="box",label="methods.inputs.download_jrc_data"];
+	n2->n0[penwidth="2.0"];
+	n2->n1[penwidth="2.0"];
+
+	n1->n4[penwidth="2.0"];
+	n4[shape="box",label="methods.inputs.generate_fine_circular_coverage"];
+	n4->n3[penwidth="2.0"];
+
+	n6[shape="box",label="methods.inputs.download_shapefiles"];
+	n6->n5[penwidth="2.0"];
+
+	n5->n8[penwidth="2.0"];
+	n1->n8[penwidth="2.0"];
+	n8[shape="box",label="methods.inputs.generate_ecoregion_rasters"];
+	n8->n7[penwidth="2.0"];
+
+	n10[shape="box",label="methods.inputs.download_accessibility"];
+	n10->n9[penwidth="2.0"];
+
+	n9->n12[penwidth="2.0"];
+	n1->n12[penwidth="2.0"];
+	n12[shape="box",label="methods.inputs.generate_access_tiles"];
+	n12->n11[penwidth="2.0"];
+
+	n14[shape="box",label="methods.inputs.osm_countries"];
+	n14->n13[penwidth="2.0"];
+
+	n17[shape="box",label="methods.inputs.generate_boundary"];
+	n17->n15[penwidth="2.0"];
+	n17->n16[penwidth="2.0"];
+
+	n15->n19[penwidth="2.0"];
+	n19[shape="box",label="methods.inputs.generate_leakage"];
+	n19->n18[penwidth="2.0"];
+
+	n16->n21[penwidth="2.0"];
+	n1->n21[penwidth="2.0"];
+	n21[shape="box",label="methods.inputs.generate_luc_layer"];
+	n21->n20[penwidth="2.0"];
+
+	n22[shape="box",label="EARTHDATA_USER=%22XXXXXXXX%22"];
+
+	n23[shape="box",label="EARTHDATA_PASSWORD=%22XXXXXXXX%22"];
+
+	n24[shape="box",label="EARTH_DATA_COOKIE_FILE=%22%2Fhome%2Fmyusername%2F.urs_cookies%22"];
+
+	n25[shape="box",label="USER_PATH=%22%2Fhome%2Fmyusername%22"];
+
+	n26[shape="box",label="DATA_PATH=%22%2Fdata%2Ftmf%2Fgedi%22"];
+
+	n27[shape="box",label="DB_HOST=%22mypostgreshost%22"];
+
+	n28[shape="box",label="DB_NAME=%22tmf_gedi%22"];
+
+	n29[shape="box",label="DB_USER=%22tmf_database_user%22"];
+
+	n30[shape="box",label="DB_PASSWORD=%22XXXXXXXX%22"];
+
+	n16->n32[penwidth="2.0"];
+	n32[shape="box",label="methods.inputs.download_gedi_data"];
+	n32->n31[penwidth="2.0"];
+
+	n31->n33[penwidth="2.0"];
+	n33[shape="box",label="methods.inputs.import_gedi_data"];
+
+	n16->n35[penwidth="2.0"];
+	n20->n35[penwidth="2.0"];
+	n35[shape="box",label="methods.inputs.generate_carbon_density"];
+	n35->n34[penwidth="2.0"];
+
+	n15->n37[penwidth="2.0"];
+	n13->n37[penwidth="2.0"];
+	n37[shape="box",label="methods.inputs.generate_country_list"];
+	n37->n36[penwidth="2.0"];
+
+	n15->n40[penwidth="2.0"];
+	n36->n40[penwidth="2.0"];
+	n13->n40[penwidth="2.0"];
+	n5->n40[penwidth="2.0"];
+	n40[shape="box",label="methods.inputs.generate_matching_area"];
+	n40->n38[penwidth="2.0"];
+	n40->n39[penwidth="2.0"];
+
+	n15->n43[penwidth="2.0"];
+	n39->n43[penwidth="2.0"];
+	n43[shape="box",label="methods.inputs.download_srtm_data"];
+	n43->n41[penwidth="2.0"];
+	n43->n42[penwidth="2.0"];
+
+	n42->n45[penwidth="2.0"];
+	n45[shape="box",label="methods.inputs.generate_slope"];
+	n45->n44[penwidth="2.0"];
+
+	n1->n47[penwidth="2.0"];
+	n42->n47[penwidth="2.0"];
+	n47[shape="box",label="methods.inputs.rescale_tiles_to_jrc"];
+	n47->n46[penwidth="2.0"];
+
+	n1->n49[penwidth="2.0"];
+	n44->n49[penwidth="2.0"];
+	n49[shape="box",label="methods.inputs.rescale_tiles_to_jrc"];
+	n49->n48[penwidth="2.0"];
+
+	n1->n51[penwidth="2.0"];
+	n39->n51[penwidth="2.0"];
+	n13->n51[penwidth="2.0"];
+	n51[shape="box",label="methods.inputs.generate_country_raster"];
+	n51->n50[penwidth="2.0"];
+
+	n15->n53[penwidth="2.0"];
+	n1->n53[penwidth="2.0"];
+	n3->n53[penwidth="2.0"];
+	n7->n53[penwidth="2.0"];
+	n46->n53[penwidth="2.0"];
+	n48->n53[penwidth="2.0"];
+	n11->n53[penwidth="2.0"];
+	n50->n53[penwidth="2.0"];
+	n53[shape="box",label="methods.matching.calculate_k"];
+	n53->n52[penwidth="2.0"];
+
+	n52->n56[penwidth="2.0"];
+	n1->n56[penwidth="2.0"];
+	n3->n56[penwidth="2.0"];
+	n7->n56[penwidth="2.0"];
+	n46->n56[penwidth="2.0"];
+	n48->n56[penwidth="2.0"];
+	n11->n56[penwidth="2.0"];
+	n50->n56[penwidth="2.0"];
+	n56[shape="box",label="methods.matching.find_potential_matches"];
+	n56->n54[penwidth="2.0"];
+	n56->n55[penwidth="2.0"];
+
+	n55->n58[penwidth="2.0"];
+	n58[shape="box",label="methods.matching.build_m_raster"];
+	n58->n57[penwidth="2.0"];
+
+	n57->n60[penwidth="2.0"];
+	n54->n60[penwidth="2.0"];
+	n1->n60[penwidth="2.0"];
+	n3->n60[penwidth="2.0"];
+	n7->n60[penwidth="2.0"];
+	n46->n60[penwidth="2.0"];
+	n48->n60[penwidth="2.0"];
+	n11->n60[penwidth="2.0"];
+	n50->n60[penwidth="2.0"];
+	n60[shape="box",label="methods.matching.build_m_table"];
+	n60->n59[penwidth="2.0"];
+
+	n52->n62[penwidth="2.0"];
+	n59->n62[penwidth="2.0"];
+	n62[shape="box",label="methods.matching.find_pairs"];
+	n62->n61[penwidth="2.0"];
+
+	n15->n64[penwidth="2.0"];
+	n34->n64[penwidth="2.0"];
+	n61->n64[penwidth="2.0"];
+	n64[shape="box",label="methods.outputs.calculate_additionality"];
+	n64->n63[penwidth="2.0"];
+
+}

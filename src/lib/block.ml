@@ -1,9 +1,24 @@
 open Astring
 
 type kind = [ `Build | `Run ]
+
+let pp_kind ppf = function
+  | `Build -> Fmt.pf ppf "build"
+  | `Run -> Fmt.pf ppf "run"
+
 type t = { kind : kind; hash : string option; alias : string; body : string }
 
 let v ?hash ~alias ~body kind = { alias; body; kind; hash }
+
+let pp ppf t =
+  Fmt.record
+    [
+      Fmt.field "kind" (fun t -> t.kind) pp_kind;
+      Fmt.field "hash" (fun t -> t.hash) Fmt.(option string);
+      Fmt.field "alias" (fun t -> t.alias) Fmt.string;
+      Fmt.field "body" (fun t -> t.body) Fmt.string;
+    ]
+    ppf t
 
 let of_info_string ?(default = fun ~info:_ ~body:_ -> None) ~body s =
   match Astring.String.cuts ~sep:":" s with

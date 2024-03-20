@@ -16,6 +16,9 @@ type kind = [ `Build | `Run ]
 val v : ?hash:string -> alias:string -> body:string -> kind -> t
 (** Construct a custom block. *)
 
+val pp : t Fmt.t
+(** A pretty printer for blocks. *)
+
 val with_hash : t -> string -> t
 (** [with_hash block] is [block] with a new hash. *)
 
