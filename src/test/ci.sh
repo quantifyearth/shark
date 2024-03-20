@@ -18,8 +18,6 @@ case "$1" in
         ;;
 
     rsync_copy)
-        sudo chmod a+x /usr/local/bin/runc
-
         sudo mkdir /rsync
         sudo chown "$(whoami)" /rsync
 
