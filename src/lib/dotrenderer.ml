@@ -1,5 +1,5 @@
 open Astring
-module DataFile = Ordered_command.DataFile
+module DataFile = Ast.DataFile
 module DataFileSet = Set.Make (DataFile)
 
 (* In theory this could be a recursive structure that attempts to maintain the
@@ -16,41 +16,41 @@ type section_group = {
 let render_command_to_dot ppf command =
   (* let node_style = process_style node.style in *)
   (* TODO - some commands like littlejohn get different box styles*)
-  let process_index = Ordered_command.Leaf.id command in
+  let process_index = Ast.Leaf.id command in
   List.iter
     (fun datafile ->
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n"
         (DataFile.id datafile) process_index)
-    (Ordered_command.Leaf.inputs command);
+    (Ast.Leaf.inputs command);
   Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n" process_index "box"
-    (Uri.pct_encode (Command.name (Ordered_command.Leaf.command command)));
+    (Uri.pct_encode (Command.name (Ast.Leaf.command command)));
   List.iter
     (fun datafile ->
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n" process_index
         (DataFile.id datafile))
-    (Ordered_command.Leaf.outputs command);
+    (Ast.Leaf.outputs command);
   Format.fprintf ppf "\n"
 
 let datafile_to_dot ppf datafile =
   Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n"
     (DataFile.id datafile) (DataFile.path datafile)
 
-let render_ast_to_dot ppf (ast : Ordered_command.t) : unit =
+let render_ast_to_dot ppf (ast : Ast.t) : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
     (fun group ->
-      let commands = Ordered_command.CommandGroup.children group in
+      let commands = Ast.CommandGroup.children group in
       List.concat_map (fun command ->
-        let inputs = Ordered_command.Leaf.inputs command
-        and outputs = Ordered_command.Leaf.outputs command in
+        let inputs = Ast.Leaf.inputs command
+        and outputs = Ast.Leaf.outputs command in
         List.concat [ inputs; outputs ]) commands
     ) ast
   |> DataFileSet.of_list
   |> DataFileSet.iter (datafile_to_dot ppf);
 
   List.iteri (fun i group ->
-    let name = Ordered_command.CommandGroup.name group
-    and commands = Ordered_command.CommandGroup.children group in
+    let name = Ast.CommandGroup.name group
+    and commands = Ast.CommandGroup.children group in
     Format.fprintf ppf "subgraph \"cluster_%d\" {\n" i;
     Format.fprintf ppf "\tlabel = \"%s\"\n" name;
     List.iter (render_command_to_dot ppf) commands;
@@ -136,6 +136,6 @@ let render ~template_markdown =
     )
   ) sections
   in
-  let z : Ordered_command.t = Ordered_command.order_command_list metadata s in
+  let z : Ast.t = Ast.order_command_list metadata s in
   render_ast_to_dot Format.str_formatter z;
   Format.flush_str_formatter ()
