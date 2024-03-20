@@ -7,7 +7,7 @@ export OPAMYES=true
 
 case "$1" in
     zfs)
-        dd if=/dev/zero of=/tmp/zfs.img bs=100M count=50
+        dd if=/dev/zero of=/tmp/zfs.img bs=200M count=50
         sudo /sbin/modprobe zfs
         sudo zpool create obuilder-zfs /tmp/zfs.img
 
