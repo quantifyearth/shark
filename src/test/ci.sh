@@ -7,8 +7,6 @@ export OPAMYES=true
 
 case "$1" in
     zfs)
-        sudo chmod a+x /usr/local/bin/runc
-
         dd if=/dev/zero of=/tmp/zfs.img bs=100M count=50
         ZFS_LOOP=$(sudo losetup -f)
         sudo losetup -P "$ZFS_LOOP" /tmp/zfs.img
