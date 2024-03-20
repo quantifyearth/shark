@@ -3,7 +3,9 @@ open Astring
 type kind = [ `Build | `Run ]
 type t = { kind : kind; hash : string option; alias : string; body : string }
 
-let of_info_string ~body s =
+let v ?hash ~alias ~body kind = { alias; body; kind; hash }
+
+let of_info_string ?(default = fun ~info:_ ~body:_ -> None) ~body s =
   match Astring.String.cuts ~sep:":" s with
   | "shark-build" :: rest ->
       let env, hash =
@@ -21,7 +23,7 @@ let of_info_string ~body s =
         | _ -> failwith "Malformed env and hash"
       in
       Some { kind = `Run; hash; alias = env; body }
-  | _ -> None
+  | _ -> default ~info:s ~body
 
 let to_info_string t =
   match t.kind with

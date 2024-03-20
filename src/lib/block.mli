@@ -13,12 +13,21 @@ type t
 
 type kind = [ `Build | `Run ]
 
+val v : ?hash:string -> alias:string -> body:string -> kind -> t
+(** Construct a custom block. *)
+
 val with_hash : t -> string -> t
 (** [with_hash block] is [block] with a new hash. *)
 
-val of_info_string : body:string -> string -> t option
+val of_info_string :
+  ?default:(info:string -> body:string -> t option) ->
+  body:string ->
+  string ->
+  t option
 (** [of_info_string ~body info] creates a shark block from a code block's
-    body and the info string (the bit after [```] usually). *)
+    body and the info string (the bit after [```] usually). You can use [default]
+    to override the value that is returned if the [info_string] is not a
+    Shark block. *)
 
 val to_info_string : t -> string
 (** Convert the block back to the info string *)
