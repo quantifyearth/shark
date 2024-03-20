@@ -68,11 +68,7 @@ let default ~info ~body = Some (Block.v ~alias:info ~body `Run)
 let parse_markdown markdown =
   let doc = Cmarkit.Doc.of_string markdown in
 
-  let current_section_title = ref "Top level"
-  and cuirrent_block_list = ref []
-  and sections = ref [] in
-
-  let block _ = function
+  let block _ acc = function
     | Cmarkit.Block.Heading (node, _meta) ->
         let title =
           Cmarkit.Block.Heading.inline node
@@ -80,15 +76,8 @@ let parse_markdown markdown =
           |> List.map (String.concat ~sep:"")
           |> String.concat ~sep:" / "
         in
-        (if List.length !cuirrent_block_list > 0 then
-           let order_corrected_group = List.rev !cuirrent_block_list in
-           sections :=
-             { name = !current_section_title; children = order_corrected_group }
-             :: !sections);
-        cuirrent_block_list := [];
-        current_section_title := title;
-        `Default
-    | Cmarkit.Block.Code_block (node, _meta) ->
+        Cmarkit.Folder.ret ({ name = title; children = [] } :: acc)
+    | Cmarkit.Block.Code_block (node, _meta) -> (
         let info_str =
           match Cmarkit.Block.Code_block.info_string node with
           | None -> "shark-run:"
@@ -99,24 +88,25 @@ let parse_markdown markdown =
           List.map Cmarkit.Block_line.to_string body
           |> List.map String.trim |> String.concat ~sep:"\n"
         in
-        (match Block.of_info_string ~default ~body info_str with
-        | Some b -> cuirrent_block_list := b :: !cuirrent_block_list
-        | None -> ());
-        `Default
-    | _ -> `Default
+        match Block.of_info_string ~default ~body info_str with
+        | None -> Cmarkit.Folder.default
+        | Some b -> (
+            match acc with
+            | [] ->
+                Cmarkit.Folder.ret [ { name = "Top level"; children = [ b ] } ]
+            | hd :: tl ->
+                Cmarkit.Folder.ret
+                  ({
+                     name = hd.name;
+                     children = List.rev (b :: List.rev hd.children);
+                   }
+                  :: tl)))
+    | _ -> Cmarkit.Folder.default
   in
 
-  let mapper = Cmarkit.Mapper.make ~block () in
-  ignore (Cmarkit.Mapper.map_doc mapper doc);
-
-  (* Flush last section *)
-  (if List.length !cuirrent_block_list > 0 then
-     let order_corrected_group = List.rev !cuirrent_block_list in
-     sections :=
-       { name = !current_section_title; children = order_corrected_group }
-       :: !sections);
-
-  List.rev !sections
+  let folder = Cmarkit.Folder.make ~block () in
+  List.rev (Cmarkit.Folder.fold_doc folder [] doc)
+  |> List.filter_map (fun x -> match x.children with [] -> None | _ -> Some x)
 
 let render ~template_markdown =
   let metadata, sections =
