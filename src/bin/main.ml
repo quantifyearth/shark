@@ -2,15 +2,15 @@ open Lwt.Infix
 
 let ( / ) = Filename.concat
 
-module Sandbox = Obuilder.Sandbox
-module Fetcher = Obuilder.Docker
+module Sandbox = Obuilder.Native_sandbox
+module Fetcher = Obuilder.Docker_extract
 module Store_spec = Obuilder.Store_spec
 
 let await = Lwt_eio.Promise.await_lwt
 
 let store_of_string = function
-  | (`Btrfs _ | `Zfs _) as v -> v
   | `Rsync path -> `Rsync (path, Obuilder.Rsync_store.Copy)
+  | (`Zfs _ | `Btrfs _ | `Xfs _ | `Docker _) as v -> v
 
 let config_path =
   match Sys.getenv_opt "SHARK_CONFIG" with
@@ -28,9 +28,6 @@ let store_or_default v =
       let config = Shark.Config.t_of_sexp (Sexplib.Sexp.of_string config) in
       Obuilder.Store_spec.to_store config.store
 
-type builder =
-  | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
-
 let run_eventloop ~clock main =
   Lwt_eio.with_event_loop ~debug:true ~clock @@ fun _ ->
   Lwt_eio.Promise.await_lwt (main ())
@@ -43,14 +40,14 @@ let log tag msg =
       output_string stdout msg;
       flush stdout
 
-let create_builder spec conf =
+let create_builder (_, spec) conf =
   let (Store_spec.Store ((module Store), store)) = await spec in
   let module Builder = Obuilder.Builder (Store) (Sandbox) (Fetcher) in
   let sandbox =
     await @@ Sandbox.create ~state_dir:(Store.state_dir store / "sandbox") conf
   in
   let builder = Builder.v ~store ~sandbox in
-  Builder ((module Builder), builder)
+  Shark.Md.Builder ((module Builder), builder)
 
 let read_whole_file path =
   let ic = open_in_bin path in
@@ -125,8 +122,10 @@ let edit ~proc ~net ~fs () file port =
 
 let md ~proc ~net ~fs () no_run store conf file port =
   run_eventloop @@ fun () ->
-  let store = store_or_default store in
-  let (Builder ((module Builder), builder)) = create_builder store conf in
+  let ((_, store) as s) = store_or_default store in
+  let (Builder ((module Builder), builder) as obuilder) =
+    create_builder s conf
+  in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let doc =
     In_channel.with_open_bin file @@ fun ic ->
@@ -137,7 +136,7 @@ let md ~proc ~net ~fs () no_run store conf file port =
     else
       let cb, blk =
         Lwt_eio.Promise.await_lwt
-        @@ Shark.Md.process_block ~alias_hash_map:!alias_hash_map store conf
+        @@ Shark.Md.process_block ~alias_hash_map:!alias_hash_map obuilder
              (code_block, block)
       in
       alias_hash_map :=
@@ -250,15 +249,16 @@ let build ~clock =
   Cmd.v info
     Term.(
       const (build ~clock)
-      $ setup_log $ store $ spec_file $ Obuilder.Sandbox.cmdliner $ src_dir
-      $ secrets)
+      $ setup_log $ store $ spec_file $ Obuilder.Native_sandbox.cmdliner
+      $ src_dir $ secrets)
 
 let run ~clock =
   let doc = "Run a shell inside a container" in
   let info = Cmd.info "run" ~doc in
   Cmd.v info
     Term.(
-      const (run ~clock) $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
+      const (run ~clock)
+      $ setup_log $ store $ Obuilder.Native_sandbox.cmdliner $ id)
 
 let md ~proc ~net ~fs ~clock =
   let doc = "Execute a markdown file" in
@@ -266,8 +266,8 @@ let md ~proc ~net ~fs ~clock =
   Cmd.v info
     Term.(
       const (md ~proc ~net ~fs ~clock)
-      $ setup_log $ no_run $ store $ Obuilder.Sandbox.cmdliner $ markdown_file
-      $ port)
+      $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
+      $ markdown_file $ port)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in
