@@ -18,8 +18,8 @@ using that environment.
 ## Shark Run
 
 ```shark-run:gdal-env
-$ gdalinfo --version > gdal.version
-$ cat gdal.version
+$ gdalinfo --version > /data/gdal.version
+$ cat /data/gdal.version
 ```
 
 Of course we can make use of the pretty good networking reproducibility.
