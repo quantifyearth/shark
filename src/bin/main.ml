@@ -100,7 +100,28 @@ let run () store conf id =
       Fmt.epr "Build step failed: %s@." m;
       exit 1
 
-let option_get = function Some v -> v | None -> failwith "Dumbass!"
+let log_warning exn = Eio.traceln "%s" (Printexc.to_string exn)
+
+let edit ~proc ~net ~fs () file port =
+  run_eventloop @@ fun () ->
+  let port = match port with None -> 8080 | Some port -> port in
+  let handler conn request body =
+    let routes =
+      Shark.Serve.edit_routes ~proc Eio.Path.(fs / file) conn request body
+    in
+    let router = Routes.one_of routes in
+    match Routes.match' router ~target:(Http.Request.resource request) with
+    | FullMatch a -> a
+    | MatchWithTrailingSlash a -> a
+    | NoMatch -> Shark.Serve.respond_not_found
+  in
+  let addr = `Tcp (Eio.Net.Ipaddr.V4.any, port) in
+  Eio.traceln "Running edit server at http://%a:%i/editor" Eio.Net.Ipaddr.pp
+    Eio.Net.Ipaddr.V4.any port;
+  Eio.Switch.run @@ fun sw ->
+  let socket = Eio.Net.listen net ~sw ~backlog:128 ~reuse_addr:true addr
+  and server = Cohttp_eio.Server.make ~callback:handler () in
+  Cohttp_eio.Server.run socket server ~on_error:log_warning
 
 let md ~proc ~net ~fs () no_run store conf file port =
   run_eventloop @@ fun () ->
@@ -120,12 +141,11 @@ let md ~proc ~net ~fs () no_run store conf file port =
              (code_block, block)
       in
       alias_hash_map :=
-        (Shark.Block.alias blk, option_get (Shark.Block.hash blk))
+        (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
         :: !alias_hash_map;
       cb
   in
   let document = Shark.Md.map_blocks doc ~f in
-  let log_warning exn = Eio.traceln "%s" (Printexc.to_string exn) in
   Eio.Switch.run @@ fun sw ->
   let run_server () =
     match port with
@@ -249,6 +269,12 @@ let md ~proc ~net ~fs ~clock =
       $ setup_log $ no_run $ store $ Obuilder.Sandbox.cmdliner $ markdown_file
       $ port)
 
+let editor ~proc ~net ~fs ~clock =
+  let doc = "Run the editor for a markdown file" in
+  let info = Cmd.info "editor" ~doc in
+  Cmd.v info
+    Term.(const (edit ~proc ~net ~fs ~clock) $ setup_log $ markdown_file $ port)
+
 let template ~clock fs =
   let doc = "Template a markdown file by replacing variables" in
   let info = Cmd.info "template" ~doc in
@@ -275,6 +301,7 @@ let cmds env =
     build ~clock;
     run ~clock;
     md ~proc ~clock ~net ~fs;
+    editor ~proc ~clock ~net ~fs;
     config;
     template ~clock (Eio.Stdenv.fs env);
     dot ~clock ~fs;
