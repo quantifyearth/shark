@@ -14,7 +14,35 @@ let find_file_args args =
 
 let parse_python_command args =
   let name =
-    match args with "-m" :: x :: _ -> x | x :: _ -> x | _ -> "Unknown"
+    match args with
+    | "-m" :: x :: _ -> x
+    | x :: _ -> Filename.basename x
+    | _ -> "Python script"
+  in
+  { name; args; file_args = find_file_args args }
+
+let parse_rscript_command args =
+  let r_options =
+    [
+      "--vanilla";
+      "--save";
+      "--no-environ";
+      "--restore";
+      "--no-site-file";
+      "--no-init-file";
+    ]
+  in
+  let rec strip_r_options args =
+    match args with
+    | [] -> []
+    | hd :: tl -> (
+        match List.mem hd r_options with
+        | false -> args
+        | true -> strip_r_options tl)
+  in
+  let reduced_args = strip_r_options args in
+  let name =
+    match reduced_args with x :: _ -> Filename.basename x | _ -> "R script"
   in
   { name; args; file_args = find_file_args args }
 
@@ -26,6 +54,7 @@ let of_string command_str =
   match String.cuts ~sep:" " command_str with
   | [] -> None
   | "python3" :: args -> Some (parse_python_command args)
+  | "Rscript" :: args -> Some (parse_rscript_command args)
   | name :: args -> Some (parse_generic_commmand name args)
 
 let name c = c.name
