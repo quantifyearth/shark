@@ -16,10 +16,12 @@ val map_blocks :
     hashes) that can be used to run blocks with the specific hash of a previous build coming
     from another block. *)
 
+type builder =
+  | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
+
 val process_block :
   alias_hash_map:(string * string) list ->
-  Obuilder.Store_spec.store Lwt.t ->
-  Obuilder.Sandbox.config ->
+  builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
   (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
 (** [process_block ~alias_hash_map store config (code_block, block)] procress a block to run
