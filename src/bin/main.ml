@@ -3,7 +3,6 @@ open Lwt.Infix
 let ( / ) = Filename.concat
 
 module Sandbox = Obuilder.Native_sandbox
-module Fetcher = Obuilder.Docker_extract
 module Store_spec = Obuilder.Store_spec
 
 let await = Lwt_eio.Promise.await_lwt
@@ -40,8 +39,12 @@ let log tag msg =
       output_string stdout msg;
       flush stdout
 
-let create_builder (_, spec) conf =
+let create_builder ~fs ~net ~domain_mgr (_, spec) conf =
   let (Store_spec.Store ((module Store), store)) = await spec in
+  let (module Fetcher) =
+    Obuilder.Container_image_extract.make_fetcher ~progress:true ~fs ~net
+      domain_mgr
+  in
   let module Builder = Obuilder.Builder (Store) (Sandbox) (Fetcher) in
   let sandbox =
     await @@ Sandbox.create ~state_dir:(Store.state_dir store / "sandbox") conf
@@ -55,10 +58,12 @@ let read_whole_file path =
   let len = in_channel_length ic in
   really_input_string ic len
 
-let build () store spec conf src_dir secrets =
+let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
-  let (Builder ((module Builder), builder)) = create_builder store conf in
+  let (Builder ((module Builder), builder)) =
+    create_builder ~fs ~net ~domain_mgr store conf
+  in
   Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
   let spec =
     try Obuilder.Spec.t_of_sexp (Sexplib.Sexp.load_sexp spec)
@@ -81,10 +86,12 @@ let build () store spec conf src_dir secrets =
       Fmt.epr "Build step failed: %s@." m;
       exit 1
 
-let run () store conf id =
+let run ~fs ~net ~domain_mgr () store conf id =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
-  let (Builder ((module Builder), builder)) = create_builder store conf in
+  let (Builder ((module Builder), builder)) =
+    create_builder ~fs ~net ~domain_mgr store conf
+  in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let _, v = Builder.shell builder id in
   v >>= fun v ->
@@ -120,11 +127,11 @@ let edit ~proc ~net ~fs () file port =
   and server = Cohttp_eio.Server.make ~callback:handler () in
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
-let md ~proc ~net ~fs () no_run store conf file port =
+let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port =
   run_eventloop @@ fun () ->
   let ((_, store) as s) = store_or_default store in
   let (Builder ((module Builder), builder) as obuilder) =
-    create_builder s conf
+    create_builder ~fs ~net ~domain_mgr s conf
   in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let doc =
@@ -243,29 +250,29 @@ let secrets =
   @@ Arg.info ~doc:"Provide a secret under the form $(b,id:file)."
        ~docv:"SECRET" [ "secret" ]
 
-let build ~clock =
+let build ~fs ~net ~domain_mgr ~clock =
   let doc = "Build a spec file." in
   let info = Cmd.info "build" ~doc in
   Cmd.v info
     Term.(
-      const (build ~clock)
+      const (build ~fs ~net ~domain_mgr ~clock)
       $ setup_log $ store $ spec_file $ Obuilder.Native_sandbox.cmdliner
       $ src_dir $ secrets)
 
-let run ~clock =
+let run ~fs ~net ~domain_mgr ~clock =
   let doc = "Run a shell inside a container" in
   let info = Cmd.info "run" ~doc in
   Cmd.v info
     Term.(
-      const (run ~clock)
+      const (run ~fs ~net ~domain_mgr ~clock)
       $ setup_log $ store $ Obuilder.Native_sandbox.cmdliner $ id)
 
-let md ~proc ~net ~fs ~clock =
+let md ~fs ~net ~domain_mgr ~proc ~clock =
   let doc = "Execute a markdown file" in
   let info = Cmd.info "md" ~doc in
   Cmd.v info
     Term.(
-      const (md ~proc ~net ~fs ~clock)
+      const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
       $ markdown_file $ port)
 
@@ -297,10 +304,11 @@ let cmds env =
   let net = Eio.Stdenv.net env in
   let fs = Eio.Stdenv.fs env in
   let proc = Eio.Stdenv.process_mgr env in
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
   [
-    build ~clock;
-    run ~clock;
-    md ~proc ~clock ~net ~fs;
+    build ~fs ~net ~domain_mgr ~clock;
+    run ~fs ~net ~domain_mgr ~clock;
+    md ~fs ~net ~domain_mgr ~proc ~clock;
     editor ~proc ~clock ~net ~fs;
     config;
     template ~clock (Eio.Stdenv.fs env);

@@ -25,6 +25,10 @@ depends: [
   "routes"
   "code-mirror"
 
+  # Container-image deps
+  "mirage-crypto-rng"
+  "tar-eio"
+
   "patdiff"   {with-test}
   "mdx"       {with-test}
   "alcotest"  {with-test}
@@ -49,4 +53,8 @@ build: [
 ]
 pin-depends:[
   [ "code-mirror.dev" "git+https://github.com/patricoferris/jsoo-code-mirror#0cd3d0aa4ca454ece5b59f45a8caadb8e1874151"]
+  # For container-image
+  [ "mirage-crypto-rng.0.11.2" "git+https://github.com/dinosaure/mirage-crypto.git#parallel"]
+  [ "tar.dev"        "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
+  [ "tar-eio.dev"    "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
 ]
