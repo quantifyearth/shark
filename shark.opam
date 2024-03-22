@@ -12,7 +12,7 @@ maintainer:"patrick@sirref.org"
 depends: [
   "dune" {>= "3.3"}
   "ocaml"
-  "obuilder"
+  # "obuilder"
   "obuilder-spec"
   "cmarkit"
   "yaml"
