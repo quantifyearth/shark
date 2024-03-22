@@ -25,10 +25,22 @@ depends: [
   "routes"
   "code-mirror"
 
-  # Container-image deps
+  # Container-image deps / OBuilder
   "mirage-crypto-rng"
+  "xdg"
+  "extunix"
+  "sha"
+  "sqlite3"
   "tar"       {= "dev"}
+  "tar-unix"  {= "dev"}
   "tar-eio"   {= "dev"}
+  "mirage-crypto-rng-eio" {= "0.11.2"}
+  "osrelease"   {= "dev"}
+  "tls-eio"
+  "progress"
+  "digestif"
+  "ppx_deriving_yojson"
+  "crunch"
 
   "patdiff"   {with-test}
   "mdx"       {with-test}
@@ -57,5 +69,7 @@ pin-depends:[
   # For container-image
   [ "mirage-crypto-rng.0.11.2" "git+https://github.com/dinosaure/mirage-crypto.git#parallel"]
   [ "tar.dev"        "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
+  [ "tar-unix.dev"        "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
   [ "tar-eio.dev"    "git+https://github.com/samoht/ocaml-tar.git#eio-0.12"]
+  [ "osrelease.dev"  "git+https://github.com/avsm/osrelease#5d2922cc56efd1ae88e75e800b2b6ba74d4181fa"]
 ]
