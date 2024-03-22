@@ -42,6 +42,12 @@ let css =
       border-color: #0a58ca;
   }
 }
+
+.cm-editor {
+  background: #eeffdd;
+  max-height: 85vh;
+}
+
 |}
 
 let body =
@@ -68,7 +74,7 @@ let body =
             ~at:
               [
                 At.class' "column";
-                At.style "height:100vh;overflow:auto;border:thin solid black";
+                At.style "height:90vh;overflow:auto;border:thin solid black";
               ]
             [ El.img ~at:[ At.id "dot-img" ] () ];
         ];
