@@ -46,7 +46,13 @@ let parse_rscript_command args =
   in
   { name; args; file_args = find_file_args args }
 
-let parse_generic_commmand name args =
+let parse_generic_commmand args =
+  let name =
+    match args with
+    | "$" :: x :: _ -> x
+    | x :: _ -> x
+    | _ -> "Unrecognised command"
+  in
   { name; args; file_args = find_file_args args }
 
 let of_string command_str =
@@ -55,7 +61,7 @@ let of_string command_str =
   | [] -> None
   | "python3" :: args -> Some (parse_python_command args)
   | "Rscript" :: args -> Some (parse_rscript_command args)
-  | name :: args -> Some (parse_generic_commmand name args)
+  | name :: args -> Some (parse_generic_commmand (name :: args))
 
 let name c = c.name
 let file_args c = c.file_args
