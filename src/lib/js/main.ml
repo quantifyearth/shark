@@ -37,7 +37,7 @@ let setup_dot_button view =
       in
       let* response = Fetch.request request in
       let+ body = Fetch.Response.as_body response |> Fetch.Body.text in
-      let png = Jstr.v "data:image/jpg;base64," in
+      let png = Jstr.v "data:image/svg+xml;base64," in
       set_dot_img (Jstr.concat [ png; body ])
     in
     let _ : _ Fut.or_error = fut in

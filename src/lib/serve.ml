@@ -438,7 +438,7 @@ let serve_editor = function
 let run_dot proc dot =
   Eio.Process.parse_out proc
     ~stdin:(Eio.Flow.string_source dot)
-    Eio.Buf_read.take_all [ "dot"; "-Tpng" ]
+    Eio.Buf_read.take_all [ "dot"; "-Tsvg" ]
 
 let serve_dot proc _req body =
   let template_markdown = Eio.Flow.read_all body in
