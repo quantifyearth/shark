@@ -27,7 +27,8 @@ depends: [
 
   # Container-image deps
   "mirage-crypto-rng"
-  "tar-eio"
+  "tar"       {= "dev"}
+  "tar-eio"   {= "dev"}
 
   "patdiff"   {with-test}
   "mdx"       {with-test}
