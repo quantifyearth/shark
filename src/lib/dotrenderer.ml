@@ -16,8 +16,13 @@ let render_command_to_dot ppf command =
   let process_index = Ast.Leaf.id command in
   List.iter
     (fun datafile ->
-      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n"
-        (DataFile.id datafile) process_index)
+      let label =
+        match DataFile.subpath datafile with
+        | Some x -> Printf.sprintf ",label=\"%s\"" x
+        | None -> ""
+      in
+      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"%s];\n"
+        (DataFile.id datafile) process_index label)
     (Ast.Leaf.inputs command);
   Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n" process_index "box"
     (Uri.pct_encode (Command.name (Ast.Leaf.command command)));

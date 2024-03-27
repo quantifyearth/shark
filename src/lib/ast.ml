@@ -1,10 +1,26 @@
-module DataFile = struct
-  type t = { id : int; path : string }
+open Astring
 
-  let create id path = { id; path }
+module DataFile = struct
+  type t = { id : int; path : string; subpath : string option }
+
+  let create ?(subpath = None) id path = { id; path; subpath }
   let id d = d.id
-  let path d = d.path
+
+  let path d =
+    match Filename.extension d.path = "" with
+    | false -> d.path
+    | true ->
+        let p = d.path in
+        let last_char = String.sub ~start:(String.length p) p in
+        if String.Sub.to_string last_char = "/" then p else p ^ "/"
+
+  let path_nc d = d.path
+  let subpath d = d.subpath
   let compare a b = Int.compare a.id b.id
+
+  let is_dir d =
+    (* a little hacky, we probably need to do something in the sharkdown here *)
+    Filename.extension d.path = ""
 end
 
 module Leaf = struct
@@ -35,10 +51,38 @@ type t = CommandGroup.t list
 
 let to_list cg = cg
 
+let find_matching_datafile datafile_map path =
+  match List.assoc_opt path datafile_map with
+  | Some p -> Some p
+  | None ->
+      (* No full match, but can we find a prefix dir *)
+      List.fold_left
+        (fun acc i ->
+          match acc with
+          | Some x -> Some x
+          | None -> (
+              let ipath, df = i in
+              match DataFile.is_dir df with
+              | false -> None
+              | true -> (
+                  match String.is_prefix ~affix:(DataFile.path df) path with
+                  | true ->
+                      Some
+                        (DataFile.create
+                           ~subpath:
+                             (Some
+                                (String.Sub.to_string
+                                   (String.sub ~start:(String.length ipath) path)))
+                           (DataFile.id df) (DataFile.path df))
+                  | false -> None)))
+        None datafile_map
+
 let order_command_list metadata command_groups =
   let input_map =
     List.mapi
-      (fun i f -> (f, DataFile.create i f))
+      (fun i f ->
+        let df = DataFile.create i f in
+        (f, df))
       (Frontmatter.inputs metadata)
   in
   let counter = ref (List.length input_map) in
@@ -56,14 +100,14 @@ let order_command_list metadata command_groups =
               (* TODO: dedup *)
               let inputs =
                 List.filter_map
-                  (fun path -> List.assoc_opt path datafile_map)
+                  (fun p -> find_matching_datafile datafile_map p)
                   file_args
               in
 
               let outputs =
                 List.filter_map
                   (fun path ->
-                    match List.assoc_opt path datafile_map with
+                    match find_matching_datafile datafile_map path with
                     | None ->
                         let id = !counter in
                         counter := !counter + 1;
@@ -79,7 +123,7 @@ let order_command_list metadata command_groups =
                   (List.concat
                      [
                        datafile_map;
-                       List.map (fun o -> (DataFile.path o, o)) outputs;
+                       List.map (fun o -> (DataFile.path_nc o, o)) outputs;
                      ])
               in
               (updated_map, x :: rest)

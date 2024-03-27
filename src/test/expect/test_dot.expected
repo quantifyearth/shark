@@ -1,32 +1,32 @@
 digraph{
 	n0[shape="cylinder",label="/data/tmf/project_boundaries/123.geojson"];
-	n1[shape="cylinder",label="/data/tmf/project_boundaries"];
-	n2[shape="cylinder",label="/data/tmf/jrc/zips"];
-	n3[shape="cylinder",label="/data/tmf/jrc/tif"];
-	n5[shape="cylinder",label="/data/tmf/fcc-cpcs"];
+	n1[shape="cylinder",label="/data/tmf/project_boundaries/"];
+	n2[shape="cylinder",label="/data/tmf/jrc/zips/"];
+	n3[shape="cylinder",label="/data/tmf/jrc/tif/"];
+	n5[shape="cylinder",label="/data/tmf/fcc-cpcs/"];
 	n7[shape="cylinder",label="/data/tmf/ecoregions/ecoregions.geojson"];
-	n9[shape="cylinder",label="/data/tmf/ecoregions"];
+	n9[shape="cylinder",label="/data/tmf/ecoregions/"];
 	n11[shape="cylinder",label="/data/tmf/access/raw.tif"];
-	n13[shape="cylinder",label="/data/tmf/access"];
+	n13[shape="cylinder",label="/data/tmf/access/"];
 	n15[shape="cylinder",label="/data/tmf/osm_borders.geojson"];
 	n17[shape="cylinder",label="/data/tmf/123/buffer.geojson"];
 	n19[shape="cylinder",label="/data/tmf/123/leakage.geojson"];
 	n21[shape="cylinder",label="/data/tmf/123/luc.tif"];
-	n23[shape="cylinder",label="/data/tmf/gedi"];
+	n23[shape="cylinder",label="/data/tmf/gedi/"];
 	n26[shape="cylinder",label="/data/tmf/123/carbon-density.csv"];
 	n28[shape="cylinder",label="/data/tmf/123/country-list.json"];
 	n30[shape="cylinder",label="/data/tmf/123/matching-area.geojson"];
-	n32[shape="cylinder",label="/data/tmf/srtm/zip"];
-	n33[shape="cylinder",label="/data/tmf/srtm/tif"];
-	n35[shape="cylinder",label="/data/tmf/slopes"];
-	n37[shape="cylinder",label="/data/tmf/rescaled-elevation"];
-	n39[shape="cylinder",label="/data/tmf/rescaled-slopes"];
+	n32[shape="cylinder",label="/data/tmf/srtm/zip/"];
+	n33[shape="cylinder",label="/data/tmf/srtm/tif/"];
+	n35[shape="cylinder",label="/data/tmf/slopes/"];
+	n37[shape="cylinder",label="/data/tmf/rescaled-elevation/"];
+	n39[shape="cylinder",label="/data/tmf/rescaled-slopes/"];
 	n41[shape="cylinder",label="/data/tmf/123/countries.tif"];
 	n43[shape="cylinder",label="/data/tmf/123/k.parquet"];
-	n45[shape="cylinder",label="/data/tmf/123/matches"];
+	n45[shape="cylinder",label="/data/tmf/123/matches/"];
 	n47[shape="cylinder",label="/data/tmf/123/matches.tif"];
 	n49[shape="cylinder",label="/data/tmf/123/matches.parquet"];
-	n51[shape="cylinder",label="/data/tmf/123/pairs"];
+	n51[shape="cylinder",label="/data/tmf/123/pairs/"];
 	n53[shape="cylinder",label="/data/tmf/123/additionality.csv"];
 subgraph "cluster_0" {
 	label = "JRC"
