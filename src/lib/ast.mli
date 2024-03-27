@@ -9,11 +9,12 @@ module DataFile : sig
 
   type t
 
-  val create : int -> string -> t
+  val create : ?subpath:string option -> int -> string -> t
   (** Creates a new datafile with an integer ID and a file path. *)
 
   val id : t -> int
   val path : t -> string
+  val subpath : t -> string option
   val compare : t -> t -> int
 end
 
