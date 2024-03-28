@@ -1,9 +1,28 @@
 open Astring
 
 module DataFile = struct
-  type t = { id : int; path : string; subpath : string option }
+  type t = { id : int; path : string; subpath : string option; wildcard : bool }
 
-  let create ?(subpath = None) id path = { id; path; subpath }
+  let create ?(subpath = None) id path =
+    let wildcard =
+      match subpath with
+      | None -> false
+      | Some p ->
+          let last_char =
+            String.Sub.to_string (String.sub ~start:(String.length p - 1) p)
+          in
+          last_char = "*"
+    in
+    (* Printf.printf "%s\n" last_char; *)
+    if wildcard then
+      {
+        id;
+        path = String.Sub.to_string (String.sub ~stop:(String.length path) path);
+        subpath = None;
+        wildcard = true;
+      }
+    else { id; path; subpath; wildcard = false }
+
   let id d = d.id
 
   let path d =
@@ -16,6 +35,7 @@ module DataFile = struct
 
   let path_nc d = d.path
   let subpath d = d.subpath
+  let is_wildcard d = d.wildcard
   let compare a b = Int.compare a.id b.id
 
   let is_dir d =
@@ -24,17 +44,23 @@ module DataFile = struct
 end
 
 module Leaf = struct
+  type style = Command | Map
+
   type t = {
     id : int;
     command : Command.t;
+    style : style;
     inputs : DataFile.t list;
     outputs : DataFile.t list;
   }
 
-  let create id command inputs outputs = { id; command; inputs; outputs }
+  let create id command style inputs outputs =
+    { id; command; style; inputs; outputs }
+
   let command o = o.command
   let inputs o = o.inputs
   let outputs o = o.outputs
+  let command_style o = o.style
   let id o = o.id
 end
 
@@ -104,6 +130,12 @@ let order_command_list metadata command_groups =
                   file_args
               in
 
+              let style : Leaf.style =
+                match List.exists DataFile.is_wildcard inputs with
+                | true -> Map
+                | false -> Command
+              in
+
               let outputs =
                 List.filter_map
                   (fun path ->
@@ -116,7 +148,7 @@ let order_command_list metadata command_groups =
                   file_args
               in
 
-              let x = Leaf.create !counter hd inputs outputs in
+              let x = Leaf.create !counter hd style inputs outputs in
               counter := !counter + 1;
               let updated_map, rest =
                 loop tl
