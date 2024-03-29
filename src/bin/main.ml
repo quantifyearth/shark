@@ -1,5 +1,3 @@
-open Lwt.Infix
-
 let ( / ) = Filename.concat
 
 module Sandbox = Obuilder.Native_sandbox
@@ -28,8 +26,7 @@ let store_or_default v =
       Obuilder.Store_spec.to_store config.store
 
 let run_eventloop ~clock main =
-  Lwt_eio.with_event_loop ~debug:true ~clock @@ fun _ ->
-  Lwt_eio.Promise.await_lwt (main ())
+  Lwt_eio.with_event_loop ~debug:true ~clock @@ fun _ -> main ()
 
 let log tag msg =
   match tag with
@@ -64,27 +61,18 @@ let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets =
   let (Builder ((module Builder), builder)) =
     create_builder ~fs ~net ~domain_mgr store conf
   in
-  Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
-  let spec =
-    try Obuilder.Spec.t_of_sexp (Sexplib.Sexp.load_sexp spec)
-    with Failure msg ->
-      print_endline msg;
-      exit 1
-  in
+  Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
+  let spec = Obuilder.Spec.t_of_sexp (Sexplib.Sexp.load_sexp spec) in
   let secrets =
     List.map (fun (id, path) -> (id, read_whole_file path)) secrets
   in
   let context = Obuilder.Context.v ~log ~src_dir ~secrets () in
-  Builder.build builder context spec >>= function
+  match await @@ Builder.build builder context spec with
   | Ok x ->
       Fmt.pr "Got: %S@." (x :> string);
-      Lwt.return_unit
-  | Error `Cancelled ->
-      Fmt.epr "Cancelled at user's request@.";
-      exit 1
-  | Error (`Msg m) ->
-      Fmt.epr "Build step failed: %s@." m;
-      exit 1
+      Ok ()
+  | Error `Cancelled -> Error "Cancelled at user's request"
+  | Error (`Msg m) -> Error (Fmt.str "Build step failed: %s" m)
 
 let run ~fs ~net ~domain_mgr () store conf id =
   run_eventloop @@ fun () ->
@@ -94,15 +82,10 @@ let run ~fs ~net ~domain_mgr () store conf id =
   in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let _, v = Builder.shell builder id in
-  v >>= fun v ->
-  match v with
-  | Ok _ -> Lwt.return_unit
-  | Error `Cancelled ->
-      Fmt.epr "Cancelled at user's request@.";
-      exit 1
-  | Error (`Msg m) ->
-      Fmt.epr "Build step failed: %s@." m;
-      exit 1
+  match await v with
+  | Ok _ as v -> v
+  | Error `Cancelled -> Error "Cancelled at user's request@."
+  | Error (`Msg m) -> Error (Fmt.str "Build step failed: %s" m)
 
 let log_warning exn = Eio.traceln "%s" (Printexc.to_string exn)
 
@@ -130,10 +113,10 @@ let edit ~proc ~net ~fs () file port =
 let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port =
   run_eventloop @@ fun () ->
   let ((_, store) as s) = store_or_default store in
-  let (Builder ((module Builder), builder) as obuilder) =
+  let (Builder ((module Builder), _builder) as obuilder) =
     create_builder ~fs ~net ~domain_mgr s conf
   in
-  Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
+  Fun.protect ~finally:(fun () -> ()) @@ fun () ->
   let doc =
     In_channel.with_open_bin file @@ fun ic ->
     Cmarkit.Doc.of_string (In_channel.input_all ic)
@@ -167,18 +150,20 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port =
         and server = Cohttp_eio.Server.make ~callback:handler () in
         Cohttp_eio.Server.run socket server ~on_error:log_warning
   in
-  Lwt.return (run_server ())
+  run_server ();
+  Ok ()
 
 let template ~clock ~fs () file directory =
   run_eventloop ~clock @@ fun () ->
   let file_path = Eio.Path.(fs / file) in
   let directory = Eio.Path.(fs / directory) in
   Shark.Template.template ~file_path ~directory;
-  Lwt.return_unit
+  Ok ()
 
 let config () =
   let config = Shark.Config.{ store = `Zfs "obuilder-zfs" } in
-  Fmt.pr "%a" Sexplib.Sexp.pp_hum (Shark.Config.sexp_of_t config)
+  Fmt.pr "%a" Sexplib.Sexp.pp_hum (Shark.Config.sexp_of_t config);
+  Ok ()
 
 let dot ~fs () file =
   run_eventloop @@ fun () ->
@@ -186,7 +171,7 @@ let dot ~fs () file =
   let template_markdown = Eio.Path.load file_path in
   let s = Shark.Dotrenderer.render ~template_markdown in
   Format.pp_print_string Format.std_formatter s;
-  Lwt.return_unit
+  Ok ()
 
 open Cmdliner
 
@@ -317,6 +302,7 @@ let cmds env =
 
 let () =
   Eio_main.run @@ fun env ->
+  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
   let doc = "a command-line interface for Shark" in
   let info = Cmd.info ~doc "shark" in
-  exit (Cmd.eval @@ Cmd.group info (cmds env))
+  exit (Cmd.eval_result @@ Cmd.group info (cmds env))
