@@ -22,71 +22,67 @@ module Basic = struct
 end
 
 module CommandParsing = struct
+  let command = Alcotest.of_pp Shark.Command.pp
+
   let test_python_command_module () =
     let testcase = "python3 -m some.module.code arg1 arg2" in
-    let expected_name = "some.module.code" in
-
+    let expected =
+      Shark.Command.v ~name:"some.module.code"
+        ~args:[ "-m"; "some.module.code"; "arg1"; "arg2" ]
+        ~file_args:[]
+    in
     let test = Shark.Command.of_string testcase in
-    match test with
-    | None -> Alcotest.fail "Command parse failed"
-    | Some t ->
-        Alcotest.(check string)
-          "Command name" (Shark.Command.name t) expected_name
+    Alcotest.(check (option command)) "Command" test (Some expected)
 
   let test_python_command_direct () =
     let testcase = "python3 some/module/code.py arg1 arg2" in
-    let expected_name = "code.py" in
-
+    let expected =
+      Shark.Command.v ~name:"code.py"
+        ~args:[ "some/module/code.py"; "arg1"; "arg2" ]
+        ~file_args:[]
+    in
     let test = Shark.Command.of_string testcase in
-    match test with
-    | None -> Alcotest.fail "Command parse failed"
-    | Some t ->
-        Alcotest.(check string)
-          "Command name" (Shark.Command.name t) expected_name
+    Alcotest.(check (option command)) "Command" test (Some expected)
 
   let test_rscript_command_basic () =
     let testcase = "Rscript some/module/code.r arg1 arg2" in
-    let expected_name = "code.r" in
-
+    let expected =
+      Shark.Command.v ~name:"code.r"
+        ~args:[ "some/module/code.r"; "arg1"; "arg2" ]
+        ~file_args:[]
+    in
     let test = Shark.Command.of_string testcase in
-    match test with
-    | None -> Alcotest.fail "Command parse failed"
-    | Some t ->
-        Alcotest.(check string)
-          "Command name" (Shark.Command.name t) expected_name
+    Alcotest.(check (option command)) "Command" test (Some expected)
 
   let test_rscript_command_options () =
     let testcase = "Rscript --no-environ --save some/module/code.r arg1 arg2" in
-    let expected_name = "code.r" in
-
+    let expected =
+      Shark.Command.v ~name:"code.r"
+        ~args:[ "--no-environ"; "--save"; "some/module/code.r"; "arg1"; "arg2" ]
+        ~file_args:[]
+    in
     let test = Shark.Command.of_string testcase in
-    match test with
-    | None -> Alcotest.fail "Command parse failed"
-    | Some t ->
-        Alcotest.(check string)
-          "Command name" (Shark.Command.name t) expected_name
+    Alcotest.(check (option command)) "Command" test (Some expected)
 
   let test_generic_command_basic () =
     let testcase = "docker arg1 arg2" in
-    let expected_name = "docker" in
-
+    let expected =
+      Shark.Command.v ~name:"docker"
+        ~args:[ "docker"; "arg1"; "arg2" ]
+        ~file_args:[]
+    in
     let test = Shark.Command.of_string testcase in
-    match test with
-    | None -> Alcotest.fail "Command parse failed"
-    | Some t ->
-        Alcotest.(check string)
-          "Command name" (Shark.Command.name t) expected_name
+    Alcotest.(check (option command)) "Command" test (Some expected)
 
   let test_generic_command_basic_with_prefix () =
     let testcase = "$ docker arg1 arg2" in
-    let expected_name = "docker" in
-
+    let expected =
+      Shark.Command.v ~name:"docker"
+        ~args:[ "$"; "docker"; "arg1"; "arg2" ]
+        ~file_args:[]
+    in
     let test = Shark.Command.of_string testcase in
-    match test with
-    | None -> Alcotest.fail "Command parse failed"
-    | Some t ->
-        Alcotest.(check string)
-          "Command name" (Shark.Command.name t) expected_name
+    Alcotest.(check (option command)) "Command" test (Some expected)
 
   let tests =
     [

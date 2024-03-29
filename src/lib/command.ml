@@ -1,6 +1,11 @@
 open Astring
+open Sexplib.Conv
 
 type t = { name : string; args : string list; file_args : string list }
+[@@deriving sexp]
+
+let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
+let v ~name ~args ~file_args = { name; args; file_args }
 
 let find_file_args args =
   (* gross liberties, we assume for now that any arg with a doubeldash might be a file. though ultimately this
