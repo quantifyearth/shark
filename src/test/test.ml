@@ -103,6 +103,80 @@ module CommandParsing = struct
     ]
 end
 
+module DataFile = struct
+  (* let datafile = Alcotest.of_pp Shark.Ast.DataFile.pp *)
+
+  let test_basic_file_path () =
+    let testcase = "/data/test/example.tif" in
+    let test = Shark.Ast.DataFile.v 42 testcase in
+    Alcotest.(check int) "Same id" 42 (Shark.Ast.DataFile.id test);
+    Alcotest.(check string) "Same path" testcase (Shark.Ast.DataFile.path test);
+    Alcotest.(check (option string))
+      "No subpath" None
+      (Shark.Ast.DataFile.subpath test);
+    Alcotest.(check bool)
+      "Isn't wildcard" false
+      (Shark.Ast.DataFile.is_wildcard test);
+    Alcotest.(check bool) "Isn't dir" false (Shark.Ast.DataFile.is_dir test)
+
+  let test_basic_dir_noncanonical () =
+    let testcase = "/data/test" in
+    let test = Shark.Ast.DataFile.v 42 testcase in
+    Alcotest.(check int) "Same id" 42 (Shark.Ast.DataFile.id test);
+    Alcotest.(check string)
+      "Extended path" "/data/test/"
+      (Shark.Ast.DataFile.path test);
+    Alcotest.(check (option string))
+      "No subpath" None
+      (Shark.Ast.DataFile.subpath test);
+    Alcotest.(check bool)
+      "Isn't wildcard" false
+      (Shark.Ast.DataFile.is_wildcard test);
+    Alcotest.(check bool) "Is dir" true (Shark.Ast.DataFile.is_dir test)
+
+  let test_basic_dir_canonical () =
+    let testcase = "/data/test/" in
+    let test = Shark.Ast.DataFile.v 42 testcase in
+    Alcotest.(check int) "Same id" 42 (Shark.Ast.DataFile.id test);
+    Alcotest.(check string) "Same path" testcase (Shark.Ast.DataFile.path test);
+    Alcotest.(check (option string))
+      "No subpath" None
+      (Shark.Ast.DataFile.subpath test);
+    Alcotest.(check bool)
+      "Isn't wildcard" false
+      (Shark.Ast.DataFile.is_wildcard test);
+    Alcotest.(check bool) "Is dir" true (Shark.Ast.DataFile.is_dir test)
+
+  let test_basic_dir_canonical_with_wildcard () =
+    let testcase = "/data/test/" in
+    let test = Shark.Ast.DataFile.v ~subpath:(Some "*") 42 testcase in
+    Alcotest.(check int) "Same id" 42 (Shark.Ast.DataFile.id test);
+    Alcotest.(check string)
+      "Extended path" "/data/test/"
+      (Shark.Ast.DataFile.path test);
+    Alcotest.(check (option string))
+      "No subpath" None
+      (Shark.Ast.DataFile.subpath test);
+    Alcotest.(check bool)
+      "Is wildcard" true
+      (Shark.Ast.DataFile.is_wildcard test);
+    Alcotest.(check bool) "Is dir" true (Shark.Ast.DataFile.is_dir test)
+
+  let tests =
+    [
+      ("Basic file", `Quick, test_basic_file_path);
+      ("Non-canonical dir", `Quick, test_basic_dir_noncanonical);
+      ("Canonical dir", `Quick, test_basic_dir_canonical);
+      ( "Canonical dir with wildcard",
+        `Quick,
+        test_basic_dir_canonical_with_wildcard );
+    ]
+end
+
 let () =
   Alcotest.run "shark"
-    [ ("basic", Basic.tests); ("command parsing", CommandParsing.tests) ]
+    [
+      ("basic", Basic.tests);
+      ("command parsing", CommandParsing.tests);
+      ("datafile modeling", DataFile.tests);
+    ]

@@ -9,13 +9,17 @@ module DataFile : sig
 
   type t
 
-  val create : ?subpath:string option -> int -> string -> t
+  val v : ?subpath:string option -> int -> string -> t
   (** Creates a new datafile with an integer ID and a file path. *)
+
+  val pp : t Fmt.t
+  (** A pretty printer for datafiles. *)
 
   val id : t -> int
   val path : t -> string
   val subpath : t -> string option
   val is_wildcard : t -> bool
+  val is_dir : t -> bool
   val compare : t -> t -> int
 end
 
@@ -25,10 +29,12 @@ module Leaf : sig
   type style = Command | Map
   type t
 
-  val create :
-    int -> Command.t -> style -> DataFile.t list -> DataFile.t list -> t
+  val v : int -> Command.t -> style -> DataFile.t list -> DataFile.t list -> t
   (** Creats a new leaf node, taking an integer identifier, the command to execute
       and a list of inputs and a list of outputs. *)
+
+  val pp : t Fmt.t
+  (** A pretty printer for leaves. *)
 
   val id : t -> int
   val command : t -> Command.t
@@ -42,8 +48,11 @@ module CommandGroup : sig
 
   type t
 
-  val create : string -> Leaf.t list -> t
+  val v : string -> Leaf.t list -> t
   (** Creates a command group made up of a series of leaf nodes and given a name. *)
+
+  val pp : t Fmt.t
+  (** A pretty printer for command groups. *)
 
   val name : t -> string
   val children : t -> Leaf.t list

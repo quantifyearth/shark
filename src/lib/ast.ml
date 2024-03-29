@@ -1,9 +1,13 @@
 open Astring
+open Sexplib.Conv
 
 module DataFile = struct
   type t = { id : int; path : string; subpath : string option; wildcard : bool }
+  [@@deriving sexp]
 
-  let create ?(subpath = None) id path =
+  let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
+
+  let v ?(subpath = None) id path =
     let wildcard =
       match subpath with
       | None -> false
@@ -13,7 +17,6 @@ module DataFile = struct
           in
           last_char = "*"
     in
-    (* Printf.printf "%s\n" last_char; *)
     if wildcard then
       {
         id;
@@ -30,7 +33,7 @@ module DataFile = struct
     | false -> d.path
     | true ->
         let p = d.path in
-        let last_char = String.sub ~start:(String.length p) p in
+        let last_char = String.sub ~start:(String.length p - 1) p in
         if String.Sub.to_string last_char = "/" then p else p ^ "/"
 
   let path_nc d = d.path
@@ -44,7 +47,7 @@ module DataFile = struct
 end
 
 module Leaf = struct
-  type style = Command | Map
+  type style = Command | Map [@@deriving sexp]
 
   type t = {
     id : int;
@@ -53,8 +56,11 @@ module Leaf = struct
     inputs : DataFile.t list;
     outputs : DataFile.t list;
   }
+  [@@deriving sexp]
 
-  let create id command style inputs outputs =
+  let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
+
+  let v id command style inputs outputs =
     { id; command; style; inputs; outputs }
 
   let command o = o.command
@@ -65,9 +71,10 @@ module Leaf = struct
 end
 
 module CommandGroup = struct
-  type t = { name : string; children : Leaf.t list }
+  type t = { name : string; children : Leaf.t list } [@@deriving sexp]
 
-  let create name children = { name; children }
+  let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
+  let v name children = { name; children }
   let name g = g.name
   let children g = g.children
 end
@@ -94,7 +101,7 @@ let find_matching_datafile datafile_map path =
                   match String.is_prefix ~affix:(DataFile.path df) path with
                   | true ->
                       Some
-                        (DataFile.create
+                        (DataFile.v
                            ~subpath:
                              (Some
                                 (String.Sub.to_string
@@ -107,7 +114,7 @@ let order_command_list metadata command_groups =
   let input_map =
     List.mapi
       (fun i f ->
-        let df = DataFile.create i f in
+        let df = DataFile.v i f in
         (f, df))
       (Frontmatter.inputs metadata)
   in
@@ -143,12 +150,12 @@ let order_command_list metadata command_groups =
                     | None ->
                         let id = !counter in
                         counter := !counter + 1;
-                        Some (DataFile.create id path)
+                        Some (DataFile.v id path)
                     | Some _ -> None)
                   file_args
               in
 
-              let x = Leaf.create !counter hd style inputs outputs in
+              let x = Leaf.v !counter hd style inputs outputs in
               counter := !counter + 1;
               let updated_map, rest =
                 loop tl
@@ -161,7 +168,7 @@ let order_command_list metadata command_groups =
               (updated_map, x :: rest)
         in
         let updated_map, commands = loop commands input_map in
-        (updated_map, CommandGroup.create name commands))
+        (updated_map, CommandGroup.v name commands))
       input_map command_groups
   in
   ordered
