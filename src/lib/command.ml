@@ -1,6 +1,11 @@
 open Astring
+open Sexplib.Conv
 
 type t = { name : string; args : string list; file_args : string list }
+[@@deriving sexp]
+
+let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
+let v ~name ~args ~file_args = { name; args; file_args }
 
 let find_file_args args =
   (* gross liberties, we assume for now that any arg with a doubeldash might be a file. though ultimately this
@@ -46,7 +51,13 @@ let parse_rscript_command args =
   in
   { name; args; file_args = find_file_args args }
 
-let parse_generic_commmand name args =
+let parse_generic_commmand args =
+  let name =
+    match args with
+    | "$" :: x :: _ -> x
+    | x :: _ -> x
+    | _ -> "Unrecognised command"
+  in
   { name; args; file_args = find_file_args args }
 
 let of_string command_str =
@@ -55,7 +66,7 @@ let of_string command_str =
   | [] -> None
   | "python3" :: args -> Some (parse_python_command args)
   | "Rscript" :: args -> Some (parse_rscript_command args)
-  | name :: args -> Some (parse_generic_commmand name args)
+  | name :: args -> Some (parse_generic_commmand (name :: args))
 
 let name c = c.name
 let file_args c = c.file_args

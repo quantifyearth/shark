@@ -83,8 +83,8 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
  |
 -|```shark-run:gdal-env
 +|```shark-run:gdal-env:8a1a508be0c5214b75f7e5a179206e5126cb9a2f772ec7ca050f58563085f364
- |$ gdalinfo --version > gdal.version
- |$ cat gdal.version
+ |$ gdalinfo --version > /data/gdal.version
+ |$ cat /data/gdal.version
 +|GDAL 3.6.4, released 2023/04/17
 +|
  |```
