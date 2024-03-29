@@ -1,5 +1,5 @@
 FROM ocaml/opam:debian-11-ocaml-5.1 as build
-RUN  sudo apt-get update
+RUN  sudo apt-get update \
   && sudo apt-get install -y runc
 RUN sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam
 USER 1000:1000
