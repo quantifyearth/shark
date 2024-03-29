@@ -38,7 +38,6 @@ let log kind buffer tag msg =
 
 let process_block ~alias_hash_map (Builder ((module Builder), builder))
     (code_block, block) =
-  Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
   match Block.kind block with
   | `Build -> (
       let spec =
@@ -80,7 +79,8 @@ let process_block ~alias_hash_map (Builder ((module Builder), builder))
         let context = Obuilder.Context.v ~log ~src_dir:"." () in
         Builder.build builder context (spec build_hash command) >>= function
         | Ok id -> Lwt.return ((id, Buffer.contents buf) :: outputs, id)
-        | Error _ -> failwith "Procressing failed"
+        | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
+        | Error (`Msg m) -> Lwt.fail_with m
       in
       Lwt_list.fold_left_s process ([], build) commands_stripped
       >>= fun (ids_and_output, _hash) ->
