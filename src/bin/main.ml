@@ -2,15 +2,14 @@ open Lwt.Infix
 
 let ( / ) = Filename.concat
 
-module Sandbox = Obuilder.Sandbox
-module Fetcher = Obuilder.Docker
+module Sandbox = Obuilder.Native_sandbox
 module Store_spec = Obuilder.Store_spec
 
 let await = Lwt_eio.Promise.await_lwt
 
 let store_of_string = function
-  | (`Btrfs _ | `Zfs _) as v -> v
   | `Rsync path -> `Rsync (path, Obuilder.Rsync_store.Copy)
+  | (`Zfs _ | `Btrfs _ | `Xfs _ | `Docker _) as v -> v
 
 let config_path =
   match Sys.getenv_opt "SHARK_CONFIG" with
@@ -28,9 +27,6 @@ let store_or_default v =
       let config = Shark.Config.t_of_sexp (Sexplib.Sexp.of_string config) in
       Obuilder.Store_spec.to_store config.store
 
-type builder =
-  | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
-
 let run_eventloop ~clock main =
   Lwt_eio.with_event_loop ~debug:true ~clock @@ fun _ ->
   Lwt_eio.Promise.await_lwt (main ())
@@ -43,14 +39,18 @@ let log tag msg =
       output_string stdout msg;
       flush stdout
 
-let create_builder spec conf =
+let create_builder ~fs ~net ~domain_mgr (_, spec) conf =
   let (Store_spec.Store ((module Store), store)) = await spec in
+  let (module Fetcher) =
+    Obuilder.Container_image_extract.make_fetcher ~progress:true ~fs ~net
+      domain_mgr
+  in
   let module Builder = Obuilder.Builder (Store) (Sandbox) (Fetcher) in
   let sandbox =
     await @@ Sandbox.create ~state_dir:(Store.state_dir store / "sandbox") conf
   in
   let builder = Builder.v ~store ~sandbox in
-  Builder ((module Builder), builder)
+  Shark.Md.Builder ((module Builder), builder)
 
 let read_whole_file path =
   let ic = open_in_bin path in
@@ -58,10 +58,12 @@ let read_whole_file path =
   let len = in_channel_length ic in
   really_input_string ic len
 
-let build () store spec conf src_dir secrets =
+let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
-  let (Builder ((module Builder), builder)) = create_builder store conf in
+  let (Builder ((module Builder), builder)) =
+    create_builder ~fs ~net ~domain_mgr store conf
+  in
   Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
   let spec =
     try Obuilder.Spec.t_of_sexp (Sexplib.Sexp.load_sexp spec)
@@ -84,10 +86,12 @@ let build () store spec conf src_dir secrets =
       Fmt.epr "Build step failed: %s@." m;
       exit 1
 
-let run () store conf id =
+let run ~fs ~net ~domain_mgr () store conf id =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
-  let (Builder ((module Builder), builder)) = create_builder store conf in
+  let (Builder ((module Builder), builder)) =
+    create_builder ~fs ~net ~domain_mgr store conf
+  in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let _, v = Builder.shell builder id in
   v >>= fun v ->
@@ -123,10 +127,12 @@ let edit ~proc ~net ~fs () file port =
   and server = Cohttp_eio.Server.make ~callback:handler () in
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
-let md ~proc ~net ~fs () no_run store conf file port =
+let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port =
   run_eventloop @@ fun () ->
-  let store = store_or_default store in
-  let (Builder ((module Builder), builder)) = create_builder store conf in
+  let ((_, store) as s) = store_or_default store in
+  let (Builder ((module Builder), builder) as obuilder) =
+    create_builder ~fs ~net ~domain_mgr s conf
+  in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let doc =
     In_channel.with_open_bin file @@ fun ic ->
@@ -137,7 +143,7 @@ let md ~proc ~net ~fs () no_run store conf file port =
     else
       let cb, blk =
         Lwt_eio.Promise.await_lwt
-        @@ Shark.Md.process_block ~alias_hash_map:!alias_hash_map store conf
+        @@ Shark.Md.process_block ~alias_hash_map:!alias_hash_map obuilder
              (code_block, block)
       in
       alias_hash_map :=
@@ -244,30 +250,31 @@ let secrets =
   @@ Arg.info ~doc:"Provide a secret under the form $(b,id:file)."
        ~docv:"SECRET" [ "secret" ]
 
-let build ~clock =
+let build ~fs ~net ~domain_mgr ~clock =
   let doc = "Build a spec file." in
   let info = Cmd.info "build" ~doc in
   Cmd.v info
     Term.(
-      const (build ~clock)
-      $ setup_log $ store $ spec_file $ Obuilder.Sandbox.cmdliner $ src_dir
-      $ secrets)
+      const (build ~fs ~net ~domain_mgr ~clock)
+      $ setup_log $ store $ spec_file $ Obuilder.Native_sandbox.cmdliner
+      $ src_dir $ secrets)
 
-let run ~clock =
+let run ~fs ~net ~domain_mgr ~clock =
   let doc = "Run a shell inside a container" in
   let info = Cmd.info "run" ~doc in
   Cmd.v info
     Term.(
-      const (run ~clock) $ setup_log $ store $ Obuilder.Sandbox.cmdliner $ id)
+      const (run ~fs ~net ~domain_mgr ~clock)
+      $ setup_log $ store $ Obuilder.Native_sandbox.cmdliner $ id)
 
-let md ~proc ~net ~fs ~clock =
+let md ~fs ~net ~domain_mgr ~proc ~clock =
   let doc = "Execute a markdown file" in
   let info = Cmd.info "md" ~doc in
   Cmd.v info
     Term.(
-      const (md ~proc ~net ~fs ~clock)
-      $ setup_log $ no_run $ store $ Obuilder.Sandbox.cmdliner $ markdown_file
-      $ port)
+      const (md ~fs ~net ~domain_mgr ~proc ~clock)
+      $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
+      $ markdown_file $ port)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in
@@ -297,10 +304,11 @@ let cmds env =
   let net = Eio.Stdenv.net env in
   let fs = Eio.Stdenv.fs env in
   let proc = Eio.Stdenv.process_mgr env in
+  let domain_mgr = Eio.Stdenv.domain_mgr env in
   [
-    build ~clock;
-    run ~clock;
-    md ~proc ~clock ~net ~fs;
+    build ~fs ~net ~domain_mgr ~clock;
+    run ~fs ~net ~domain_mgr ~clock;
+    md ~fs ~net ~domain_mgr ~proc ~clock;
     editor ~proc ~clock ~net ~fs;
     config;
     template ~clock (Eio.Stdenv.fs env);

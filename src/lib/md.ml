@@ -24,22 +24,9 @@ let map_blocks (doc : Cmarkit.Doc.t) ~f =
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
-module Sandbox = Obuilder.Sandbox
-module Fetcher = Obuilder.Docker
+module Sandbox = Obuilder.Native_sandbox
+module Fetcher = Obuilder.Docker_extract
 module Store_spec = Obuilder.Store_spec
-
-let ( / ) = Filename.concat
-
-let create_builder spec conf =
-  let open Obuilder in
-  let (Store_spec.Store ((module Store), store)) =
-    Lwt_eio.Promise.await_lwt spec
-  in
-  let module Builder = Obuilder.Builder (Store) (Sandbox) (Fetcher) in
-  Sandbox.create ~state_dir:(Store.state_dir store / "sandbox") conf
-  >|= fun sandbox ->
-  let builder = Builder.v ~store ~sandbox in
-  Builder ((module Builder), builder)
 
 let log kind buffer tag msg =
   match tag with
@@ -49,8 +36,8 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_block ~alias_hash_map store conf (code_block, block) =
-  create_builder store conf >>= fun (Builder ((module Builder), builder)) ->
+let process_block ~alias_hash_map (Builder ((module Builder), builder))
+    (code_block, block) =
   Fun.flip Lwt.finalize (fun () -> Builder.finish builder) @@ fun () ->
   match Block.kind block with
   | `Build -> (
