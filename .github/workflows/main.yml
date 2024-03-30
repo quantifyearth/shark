@@ -1,0 +1,48 @@
+name: Main workflow
+
+on:
+  pull_request:
+  push:
+  schedule:
+    # Prime the caches every Monday
+    - cron: 0 1 * * MON
+
+env:
+  RUNC_VERSION: v1.1.4
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 5.1.0
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - run: opam install . --deps-only --with-test
+
+      - name: Cache runc
+        id: cache-runc
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/bin/runc
+          key: ${{ env.RUNC_VERSION }}
+
+      - name: Download runc
+        if: steps.cache-runc.outputs.cache-hit != 'true'
+        run: |
+          sudo wget https://github.com/opencontainers/runc/releases/download/$RUNC_VERSION/runc.amd64 -O /usr/local/bin/runc
+
+      - run: $GITHUB_WORKSPACE/ci.sh
