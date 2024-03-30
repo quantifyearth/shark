@@ -8,7 +8,7 @@ built and can be referenced as the context for future `shark-run` blocks.
 ## Shark Build
 
 ```shark-build:gdal-env
-((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4)
+((from osgeo/gdal:ubuntu-small-3.6.3)
  (run (shell "echo 'Something for the log!'")))
 ```
 
@@ -18,6 +18,7 @@ using that environment.
 ## Shark Run
 
 ```shark-run:gdal-env
+$ mkdir /data
 $ gdalinfo --version > /data/gdal.version
 $ cat /data/gdal.version
 ```

@@ -60,7 +60,7 @@ the [promoted output version](./specs/shark.out.md).
 $ patdiff -ascii specs/shark.md specs/shark.out.md
 ------ specs/shark.md
 ++++++ specs/shark.out.md
-@|-1,27 +1,29 ============================================================
+@|-1,28 +1,30 ============================================================
  |# Markdown Shark Support
  |
  |The `shark` executable also can work with markdown documents. Two blocks can be
@@ -71,8 +71,8 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
  |## Shark Build
  |
 -|```shark-build:gdal-env
-+|```shark-build:gdal-env:84f2ece89c2baae67f461ed371168716821c7ed1309e431f12ba7a491dbc8ef9
- |((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.4)
++|```shark-build:gdal-env:f2021ca0e994edd2acbdf227ec98714525af89f8c7ae738af686beb3f5969af9
+ |((from osgeo/gdal:ubuntu-small-3.6.3)
  | (run (shell "echo 'Something for the log!'")))
  |```
  |
@@ -82,10 +82,11 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
  |## Shark Run
  |
 -|```shark-run:gdal-env
-+|```shark-run:gdal-env:8a1a508be0c5214b75f7e5a179206e5126cb9a2f772ec7ca050f58563085f364
++|```shark-run:gdal-env:00c8a07aff287577bce80fed68567b86f6cefcfd9376769c42942c16020ce9c5
+ |$ mkdir /data
  |$ gdalinfo --version > /data/gdal.version
  |$ cat /data/gdal.version
-+|GDAL 3.6.4, released 2023/04/17
++|GDAL 3.6.3, released 2023/03/07
 +|
  |```
  |
