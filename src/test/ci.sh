@@ -21,7 +21,7 @@ case "$1" in
         sudo mkdir /rsync
         sudo chown "$(whoami)" /rsync
 
-        sudo /home/opam/.opam/5.1/bin/shark md specs/shark.md --store=rsync:/rsync --verbose
+        sudo "/home/$(whoami)/.opam/5.1/bin/shark" md specs/shark.md --store=rsync:/rsync --verbose
 
         sudo rm -rf /rsync
         ;;
