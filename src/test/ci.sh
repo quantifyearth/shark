@@ -21,7 +21,7 @@ case "$1" in
         sudo mkdir /rsync
         sudo chown "$(whoami)" /rsync
 
-        sudo "/home/$(whoami)/.opam/5.1/bin/shark" md specs/shark.md --store=rsync:/rsync --verbose
+        sudo "$GITHUB_WORKSPACE/_build/default/install/default/bin/shark" md specs/shark.md --store=rsync:/rsync --verbose
 
         sudo rm -rf /rsync
         ;;
