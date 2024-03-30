@@ -47,4 +47,4 @@ jobs:
         run: |
           sudo wget https://github.com/opencontainers/runc/releases/download/$RUNC_VERSION/runc.amd64 -O /usr/local/bin/runc
 
-      - run: $GITHUB_WORKSPACE/src/test/ci.sh
+      - run: $GITHUB_WORKSPACE/src/test/ci.sh rsync_copy
