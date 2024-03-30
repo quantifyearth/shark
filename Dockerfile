@@ -10,4 +10,3 @@ RUN opam install -y --deps-only --with-test .
 ADD --chown=opam . .
 RUN opam exec -- dune build @runtest @install @check
 RUN opam exec -- dune install
-RUN src/test/ci.sh rsync_copy

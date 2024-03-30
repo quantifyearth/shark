@@ -36,11 +36,20 @@ let log tag msg =
       output_string stdout msg;
       flush stdout
 
-let create_builder ~fs ~net ~domain_mgr (_, spec) conf =
+let fetcher_of_string s =
+  match String.lowercase_ascii s with
+  | "docker" -> `Docker
+  | "container-image" -> `Container_image
+  | s -> Fmt.failwith "Unknown fetching backend: %s" s
+
+let create_builder ~fs ~net ~domain_mgr fetcher (_, spec) conf =
   let (Store_spec.Store ((module Store), store)) = await spec in
   let (module Fetcher) =
-    Obuilder.Container_image_extract.make_fetcher ~progress:true ~fs ~net
-      domain_mgr
+    match fetcher_of_string fetcher with
+    | `Docker -> (module Obuilder.Docker.Extract : Obuilder.S.FETCHER)
+    | `Container_image ->
+        Obuilder.Container_image_extract.make_fetcher ~progress:true ~fs ~net
+          domain_mgr
   in
   let module Builder = Obuilder.Builder (Store) (Sandbox) (Fetcher) in
   let sandbox =
@@ -55,11 +64,11 @@ let read_whole_file path =
   let len = in_channel_length ic in
   really_input_string ic len
 
-let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets =
+let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets fetcher =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
   let (Builder ((module Builder), builder)) =
-    create_builder ~fs ~net ~domain_mgr store conf
+    create_builder ~fs ~net ~domain_mgr fetcher store conf
   in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let spec = Obuilder.Spec.t_of_sexp (Sexplib.Sexp.load_sexp spec) in
@@ -74,11 +83,11 @@ let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets =
   | Error `Cancelled -> Error "Cancelled at user's request"
   | Error (`Msg m) -> Error (Fmt.str "Build step failed: %s" m)
 
-let run ~fs ~net ~domain_mgr () store conf id =
+let run ~fs ~net ~domain_mgr () store conf id fetcher =
   run_eventloop @@ fun () ->
   let store = store_or_default store in
   let (Builder ((module Builder), builder)) =
-    create_builder ~fs ~net ~domain_mgr store conf
+    create_builder ~fs ~net ~domain_mgr fetcher store conf
   in
   Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
   let _, v = Builder.shell builder id in
@@ -110,11 +119,11 @@ let edit ~proc ~net ~fs () file port =
   and server = Cohttp_eio.Server.make ~callback:handler () in
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
-let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port =
+let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
   run_eventloop @@ fun () ->
   let ((_, store) as s) = store_or_default store in
   let (Builder ((module Builder), _builder) as obuilder) =
-    create_builder ~fs ~net ~domain_mgr s conf
+    create_builder ~fs ~net ~domain_mgr fetcher s conf
   in
   Fun.protect ~finally:(fun () -> ()) @@ fun () ->
   let doc =
@@ -224,6 +233,12 @@ let port =
   @@ Arg.info ~doc:"Optional port number to serve the markdown file over."
        ~docv:"PORT" [ "port" ]
 
+let fetcher =
+  Arg.required
+  @@ Arg.opt Arg.(some string) (Some "docker")
+  @@ Arg.info ~doc:"Which image fetching backend to use." ~docv:"FETCHER"
+       [ "fetcher" ]
+
 let id =
   Arg.required
   @@ Arg.pos 0 Arg.(some string) None
@@ -242,7 +257,7 @@ let build ~fs ~net ~domain_mgr ~clock =
     Term.(
       const (build ~fs ~net ~domain_mgr ~clock)
       $ setup_log $ store $ spec_file $ Obuilder.Native_sandbox.cmdliner
-      $ src_dir $ secrets)
+      $ src_dir $ secrets $ fetcher)
 
 let run ~fs ~net ~domain_mgr ~clock =
   let doc = "Run a shell inside a container" in
@@ -250,7 +265,7 @@ let run ~fs ~net ~domain_mgr ~clock =
   Cmd.v info
     Term.(
       const (run ~fs ~net ~domain_mgr ~clock)
-      $ setup_log $ store $ Obuilder.Native_sandbox.cmdliner $ id)
+      $ setup_log $ store $ Obuilder.Native_sandbox.cmdliner $ id $ fetcher)
 
 let md ~fs ~net ~domain_mgr ~proc ~clock =
   let doc = "Execute a markdown file" in
@@ -259,7 +274,7 @@ let md ~fs ~net ~domain_mgr ~proc ~clock =
     Term.(
       const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
-      $ markdown_file $ port)
+      $ markdown_file $ port $ fetcher)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in
