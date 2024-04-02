@@ -1,20 +1,31 @@
 open Astring
 open Sexplib.Conv
 
-type t = { name : string; args : string list; file_args : string list }
+type path = Fpath.t
+
+let path_of_sexp = function
+  | Ppx_sexp_conv_lib.Sexp.Atom s -> Fpath.v s
+  | List _ -> Fpath.v ""
+
+let sexp_of_path v = Ppx_sexp_conv_lib.Sexp.Atom (Fpath.to_string v)
+
+type t = { name : string; args : string list; file_args : path list }
 [@@deriving sexp]
 
 let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 let v ~name ~args ~file_args = { name; args; file_args }
+let magic_path_regex = Str.regexp "^/data"
 
 let find_file_args args =
   (* gross liberties, we assume for now that any arg with a doubeldash might be a file. though ultimately this
      will have to rely on convention, annotation, or guesses, so it's not exactly that bad, just limited as is. I imagine
      we can have a common prefix for all files, like example.com should be used for domains. *)
-  List.filter
+  List.filter_map
     (fun arg ->
-      let regex = Str.regexp "^/data" in
-      Str.string_match regex arg 0)
+      match Str.string_match magic_path_regex arg 0 with
+      | false -> None
+      | true -> (
+          match Fpath.of_string arg with Error _e -> None | Ok r -> Some r))
     args
 
 let parse_python_command args =
@@ -69,4 +80,4 @@ let of_string command_str =
   | name :: args -> Some (parse_generic_commmand (name :: args))
 
 let name c = c.name
-let file_args c = c.file_args
+let file_args c : Fpath.t list = c.file_args

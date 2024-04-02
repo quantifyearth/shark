@@ -1,6 +1,5 @@
 open Astring
-module DataFile = Ast.DataFile
-module DataFileSet = Set.Make (DataFile)
+module DatafileSet = Set.Make (Datafile)
 
 (* In theory this could be a recursive structure that attempts to maintain the
     heirarchy of the document, markdown doesn't enforce that the section levels
@@ -16,21 +15,32 @@ let render_command_to_dot ppf command =
   let process_index = Ast.Leaf.id command in
   List.iter
     (fun datafile ->
-      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n"
-        (DataFile.id datafile) process_index)
+      let label =
+        match Datafile.subpath datafile with
+        | Some x -> Printf.sprintf ",label=\"%s\"" x
+        | None -> ""
+      in
+      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"%s];\n"
+        (Datafile.id datafile) process_index label)
     (Ast.Leaf.inputs command);
-  Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n" process_index "box"
+  let shape =
+    match Ast.Leaf.command_style command with
+    | Command -> "box"
+    | Map -> "box3d"
+  in
+  Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n" process_index shape
     (Uri.pct_encode (Command.name (Ast.Leaf.command command)));
   List.iter
     (fun datafile ->
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n" process_index
-        (DataFile.id datafile))
+        (Datafile.id datafile))
     (Ast.Leaf.outputs command);
   Format.fprintf ppf "\n"
 
 let datafile_to_dot ppf datafile =
   Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n"
-    (DataFile.id datafile) (DataFile.path datafile)
+    (Datafile.id datafile)
+    (Fpath.to_string (Datafile.path datafile))
 
 let render_ast_to_dot ppf ast : unit =
   Format.fprintf ppf "digraph{\n";
@@ -44,8 +54,8 @@ let render_ast_to_dot ppf ast : unit =
           List.concat [ inputs; outputs ])
         commands)
     ast
-  |> DataFileSet.of_list
-  |> DataFileSet.iter (datafile_to_dot ppf);
+  |> DatafileSet.of_list
+  |> DatafileSet.iter (datafile_to_dot ppf);
 
   List.iteri
     (fun i group ->
