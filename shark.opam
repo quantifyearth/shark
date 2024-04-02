@@ -16,7 +16,7 @@ depends: [
   "obuilder-spec"
   "cmarkit"
   "yaml"
-  "eio_main" {>= "0.14"}
+  "eio_main" {>= "1.0"}
   "lwt_eio"
 
   # Markdown Server
