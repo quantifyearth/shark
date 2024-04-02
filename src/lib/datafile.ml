@@ -12,8 +12,6 @@ let sexp_of_path v = Ppx_sexp_conv_lib.Sexp.Atom (Fpath.to_string v)
 type t = { id : int; path : path; subpath : string option; wildcard : bool }
 [@@deriving sexp]
 
-type err = InvalidPath of string | InvalidSubpath of string
-
 let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 
 let v ?subpath id path =

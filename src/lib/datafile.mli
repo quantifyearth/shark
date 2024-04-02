@@ -1,7 +1,6 @@
 (** A named file/directory that acts as an input and/or output of a process. *)
 
 type t [@@deriving sexp]
-type err = InvalidPath of string | InvalidSubpath of string
 
 val v : ?subpath:string -> int -> Fpath.t -> t
 (** Creates a new datafile with an integer ID and a file path. *)
