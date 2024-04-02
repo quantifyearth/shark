@@ -1,6 +1,19 @@
-type t = { variables : (string * string list) list }
+open Sexplib.Conv
 
-let empty = { variables = [] }
+type path = Fpath.t
+
+let path_of_sexp = function
+  | Ppx_sexp_conv_lib.Sexp.Atom s -> Fpath.v s
+  | List _ -> Fpath.v ""
+
+let sexp_of_path v = Ppx_sexp_conv_lib.Sexp.Atom (Fpath.to_string v)
+
+type t = { variables : (string * string list) list; inputs : path list }
+[@@deriving sexp]
+
+let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
+let v variables inputs = { variables; inputs }
+let empty = { variables = []; inputs = [] }
 
 let yaml_to_string = function
   | `String s -> s
@@ -18,10 +31,24 @@ let string_list_of_yaml = function
 let of_yaml = function
   | `O assoc ->
       let vars = List.map (fun (k, v) -> (k, string_list_of_yaml v)) assoc in
-      { variables = vars }
+      let raw_inputs =
+        match List.assoc_opt "inputs" vars with None -> [] | Some v -> v
+      in
+      let inputs =
+        List.map
+          (fun p ->
+            match Fpath.of_string p with
+            | Error e ->
+                failwith
+                  (Printf.sprintf "Malformed input path %s"
+                     (match e with `Msg x -> x))
+            | Ok p -> Fpath.normalize p)
+          raw_inputs
+      in
+      { variables = vars; inputs }
+  | `Null -> empty
   | _ -> failwith "Malformed variables in markdown frontmatter"
 
 let of_string s = String.trim s |> Yaml.of_string |> Result.map of_yaml
-
-let inputs t =
-  match List.assoc_opt "inputs" t.variables with None -> [] | Some v -> v
+let variables t = t.variables
+let inputs t = t.inputs
