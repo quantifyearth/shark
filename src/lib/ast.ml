@@ -11,16 +11,12 @@ module DataFile = struct
     let wildcard =
       match subpath with
       | None -> false
-      | Some p ->
-          let last_char =
-            String.Sub.to_string (String.sub ~start:(String.length p - 1) p)
-          in
-          last_char = "*"
+      | Some p -> Char.equal p.[String.length p - 1] '*'
     in
     if wildcard then
       {
         id;
-        path = String.Sub.to_string (String.sub ~stop:(String.length path) path);
+        path = String.Sub.to_string (String.sub ~stop:((String.length path) - 1) path);
         subpath = None;
         wildcard = true;
       }
@@ -33,8 +29,9 @@ module DataFile = struct
     | false -> d.path
     | true ->
         let p = d.path in
-        let last_char = String.sub ~start:(String.length p - 1) p in
-        if String.Sub.to_string last_char = "/" then p else p ^ "/"
+        match Char.equal p.[String.length p - 1] '/' with
+        | true -> p
+        | false -> p ^ "/"
 
   let path_nc d = d.path
   let subpath d = d.subpath
@@ -90,11 +87,10 @@ let find_matching_datafile datafile_map path =
   | None ->
       (* No full match, but can we find a prefix dir *)
       List.fold_left
-        (fun acc i ->
+        (fun acc (ipath, df) ->
           match acc with
           | Some x -> Some x
           | None -> (
-              let ipath, df = i in
               match DataFile.is_dir df with
               | false -> None
               | true -> (
