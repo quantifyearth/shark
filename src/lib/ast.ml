@@ -7,7 +7,7 @@ module DataFile = struct
 
   let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 
-  let v ?(subpath = None) id path =
+  let v ?subpath id path =
     let wildcard =
       match subpath with
       | None -> false
@@ -103,9 +103,8 @@ let find_matching_datafile datafile_map path =
                       Some
                         (DataFile.v
                            ~subpath:
-                             (Some
-                                (String.Sub.to_string
-                                   (String.sub ~start:(String.length ipath) path)))
+                             (String.Sub.to_string
+                                (String.sub ~start:(String.length ipath) path))
                            (DataFile.id df) (DataFile.path df))
                   | false -> None)))
         None datafile_map

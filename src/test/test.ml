@@ -149,7 +149,7 @@ module DataFile = struct
 
   let test_basic_dir_canonical_with_wildcard () =
     let testcase = "/data/test/" in
-    let test = Shark.Ast.DataFile.v ~subpath:(Some "*") 42 testcase in
+    let test = Shark.Ast.DataFile.v ~subpath:"*" 42 testcase in
     Alcotest.(check int) "Same id" 42 (Shark.Ast.DataFile.id test);
     Alcotest.(check string)
       "Extended path" "/data/test/"

@@ -9,7 +9,7 @@ module DataFile : sig
 
   type t
 
-  val v : ?subpath:string option -> int -> string -> t
+  val v : ?subpath:string -> int -> string -> t
   (** Creates a new datafile with an integer ID and a file path. *)
 
   val pp : t Fmt.t
