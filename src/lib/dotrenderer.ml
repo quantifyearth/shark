@@ -12,7 +12,7 @@ type section_group = { name : string; children : Block.t list }
 let render_command_to_dot ppf command =
   (* let node_style = process_style node.style in *)
   (* TODO - some commands like littlejohn get different box styles*)
-  let process_index = Ast.Leaf.id command in
+  let process_index = Leaf.id command in
   List.iter
     (fun datafile ->
       let label =
@@ -22,19 +22,17 @@ let render_command_to_dot ppf command =
       in
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"%s];\n"
         (Datafile.id datafile) process_index label)
-    (Ast.Leaf.inputs command);
+    (Leaf.inputs command);
   let shape =
-    match Ast.Leaf.command_style command with
-    | Command -> "box"
-    | Map -> "box3d"
+    match Leaf.command_style command with Command -> "box" | Map -> "box3d"
   in
   Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n" process_index shape
-    (Uri.pct_encode (Command.name (Ast.Leaf.command command)));
+    (Uri.pct_encode (Command.name (Leaf.command command)));
   List.iter
     (fun datafile ->
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n" process_index
         (Datafile.id datafile))
-    (Ast.Leaf.outputs command);
+    (Leaf.outputs command);
   Format.fprintf ppf "\n"
 
 let datafile_to_dot ppf datafile =
@@ -46,11 +44,10 @@ let render_ast_to_dot ppf ast : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
     (fun group ->
-      let commands = Ast.CommandGroup.children group in
+      let commands = Commandgroup.children group in
       List.concat_map
         (fun command ->
-          let inputs = Ast.Leaf.inputs command
-          and outputs = Ast.Leaf.outputs command in
+          let inputs = Leaf.inputs command and outputs = Leaf.outputs command in
           List.concat [ inputs; outputs ])
         commands)
     ast
@@ -59,8 +56,8 @@ let render_ast_to_dot ppf ast : unit =
 
   List.iteri
     (fun i group ->
-      let name = Ast.CommandGroup.name group
-      and commands = Ast.CommandGroup.children group in
+      let name = Commandgroup.name group
+      and commands = Commandgroup.children group in
       Format.fprintf ppf "subgraph \"cluster_%d\" {\n" i;
       Format.fprintf ppf "\tlabel = \"%s\"\n" name;
       List.iter (render_command_to_dot ppf) commands;
@@ -135,7 +132,7 @@ let render ~template_markdown =
         |> List.filter_map (fun c ->
                match Command.file_args c with [] -> None | _ -> Some c) ))
     sections
-  |> Ast.order_command_list metadata
+  |> Ast.order_command_list (Frontmatter.inputs metadata)
   |> Ast.to_list
   |> render_ast_to_dot Format.str_formatter;
   Format.flush_str_formatter ()
