@@ -1,40 +1,5 @@
-open Sexplib.Conv
-
-module Leaf = struct
-  type style = Command | Map [@@deriving sexp]
-
-  type t = {
-    id : int;
-    command : Command.t;
-    style : style;
-    inputs : Datafile.t list;
-    outputs : Datafile.t list;
-  }
-  [@@deriving sexp]
-
-  let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
-
-  let v id command style inputs outputs =
-    { id; command; style; inputs; outputs }
-
-  let command o = o.command
-  let inputs o = o.inputs
-  let outputs o = o.outputs
-  let command_style o = o.style
-  let id o = o.id
-end
-
-module CommandGroup = struct
-  type t = { name : string; children : Leaf.t list } [@@deriving sexp]
-
-  let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
-  let v name children = { name; children }
-  let name g = g.name
-  let children g = g.children
-end
-
 (* Not yet an actual AST, actually an ASL :) *)
-type t = CommandGroup.t list
+type t = Commandgroup.t list
 
 let to_list cg = cg
 
@@ -59,13 +24,13 @@ let find_matching_datafile datafile_map fpath =
                            (Datafile.id df) (Datafile.path df)))))
         None datafile_map
 
-let order_command_list metadata command_groups =
+let order_command_list inputs command_groups =
   let input_map =
     List.mapi
       (fun i f ->
         let df = Datafile.v i f in
         (f, df))
-      (Frontmatter.inputs metadata)
+      inputs
   in
   let counter = ref (List.length input_map) in
 
@@ -117,7 +82,7 @@ let order_command_list metadata command_groups =
               (updated_map, x :: rest)
         in
         let updated_map, commands = loop commands input_map in
-        (updated_map, CommandGroup.v name commands))
+        (updated_map, Commandgroup.v name commands))
       input_map command_groups
   in
   ordered
