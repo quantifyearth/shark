@@ -1,8 +1,56 @@
 open Astring
 
-type t = (string * (Block.t * Leaf.t list) list) list
+module DatafileSet = Set.Make (Datafile)
+
+module Hyperblock = struct
+  type t = {
+    context : string;
+    block : Block.t;
+    commands : Leaf.t list;
+  }
+
+  let v context block commands = {context; block ; commands}
+
+  let block h = h.block
+  let commands h = h.commands
+  let context h = h.context
+
+  let io h = 
+    let all_inputs, all_outputs = List.fold_left (fun acc v ->
+      let inputs, outputs = acc in
+      (
+        DatafileSet.union inputs (DatafileSet.of_list (Leaf.inputs v)),
+        DatafileSet.union outputs (DatafileSet.of_list (Leaf.outputs v))
+      )
+    ) (DatafileSet.empty, DatafileSet.empty) h.commands
+    in
+    (
+      DatafileSet.to_list (DatafileSet.diff all_inputs all_outputs),
+      DatafileSet.to_list (DatafileSet.diff all_outputs all_inputs)
+    )
+
+end
+
+module Section = struct
+  type t = {
+    name : string; 
+    blocks : Hyperblock.t list;
+  }
+
+  let v name blocks = {name ; blocks}
+  let name s = s.name
+  let blocks s = s.blocks
+end
 
 
+type block_id = int
+
+type dag = {
+  nodes : (block_id * Hyperblock.t) list;
+  edges : (block_id * block_id) list;
+}
+
+type t = dag
 
 (* ----- front matter parser ----- *)
 
@@ -157,21 +205,14 @@ let rec pass_one_process_commands_loop counter commands  datafile_map =
 
 let pass_one_on_list inputs section_list =
   let input_map, counter = build_initial_input_map inputs in
-
-
   let _, processed = List.fold_left_map (fun input_map section ->
     let name, superblocks = section in
-
-
     let updated_map, processed_section = List.fold_left_map (fun input_map superblock ->
       let updated_map, leaves = pass_one_process_commands_loop counter superblock.commands input_map in
-      updated_map, (superblock.block, leaves)
+      updated_map, (Hyperblock.v name superblock.block leaves)
     ) input_map superblocks
-
     in
-
-    updated_map, (name, processed_section)
-
+    updated_map, Section.v name processed_section
   ) input_map section_list
   in
   processed
@@ -179,14 +220,12 @@ let pass_one_on_list inputs section_list =
 
 (* ----- public interface ----- *)
 
-
-let to_list ast =  
-  List.map (fun section ->
-    let name, blocks = section in
-    let leaveleave = List.map (fun x -> let _, l = x in l) blocks in
-    let leaves = List.concat leaveleave in
-    Commandgroup.v name leaves 
-  ) ast
+let to_list ast =
+  (* in days of yore this was by section, but for now we do it by executable block *)
+  List.map (fun x ->
+    let _hbid, h = x in
+    Commandgroup.v (Hyperblock.context h) (Hyperblock.commands h)
+  ) ast.nodes
 
 let of_sharkdown ~template_markdown = 
   let metadata, sections =
@@ -215,5 +254,35 @@ let of_sharkdown ~template_markdown =
   (* we can only infer the dependancy graph globally, so we need to do this at the top level before 
     then working out the DAG. *)
 
-  pass_one_on_list (Frontmatter.inputs metadata) detailed_sections
+  let pass1 = pass_one_on_list (Frontmatter.inputs metadata) detailed_sections in
 
+  (* Now I have the global graph implicitly, turn the list into a graph of blocks *)
+  let all_hyperblocks = List.concat_map Section.blocks pass1 in
+  let id_all_hyperblocks = List.mapi (fun i h -> (i, h)) all_hyperblocks in
+  
+  (* All files will have one writer and zero or more readers *)
+  let writers = List.concat (
+    List.map (fun x ->
+      let hbid, h = x in
+      let _, outputs = Hyperblock.io h in
+      List.map (fun o -> (o, hbid)) outputs
+    ) id_all_hyperblocks
+  ) in
+
+  let edges = List.concat (
+    List.map (fun x ->
+      let hbid, h = x in
+      let inputs, _ = Hyperblock.io h in
+      List.filter_map (fun i -> 
+        match List.assoc_opt i writers with
+        | None -> None
+        | Some wid -> Some (wid, hbid)
+      ) inputs
+    ) id_all_hyperblocks
+  ) in
+
+  {
+    nodes=id_all_hyperblocks;
+    edges
+  }
+  

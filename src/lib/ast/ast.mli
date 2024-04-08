@@ -4,6 +4,16 @@ The AST is the logical representation of the workflow described in a
 sharkdown file, including the structure of groups (aka basic blocks
 in PL, but block is an overloaded term in this context). *)
 
+module Hyperblock: sig
+  type t
+  val block: t -> Block.t
+end
+
+module Section: sig
+  type t
+  val name: t -> string
+end
+
 type t
 (** An AST instance *)
 
