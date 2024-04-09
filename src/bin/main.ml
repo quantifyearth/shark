@@ -103,13 +103,13 @@ let edit ~proc ~net ~fs () file port =
   let port = match port with None -> 8080 | Some port -> port in
   let handler conn request body =
     let routes =
-      Shark.Serve.edit_routes ~proc Eio.Path.(fs / file) conn request body
+      Shark_server.edit_routes ~proc Eio.Path.(fs / file) conn request body
     in
     let router = Routes.one_of routes in
     match Routes.match' router ~target:(Http.Request.resource request) with
     | FullMatch a -> a
     | MatchWithTrailingSlash a -> a
-    | NoMatch -> Shark.Serve.respond_not_found
+    | NoMatch -> Shark_server.respond_not_found
   in
   let addr = `Tcp (Eio.Net.Ipaddr.V4.any, port) in
   Eio.traceln "Running edit server at http://%a:%i/editor" Eio.Net.Ipaddr.pp
@@ -152,7 +152,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
         let output_path = Eio.Path.(fs / Filename.temp_file "shark-md" "run") in
         Eio.Path.save ~create:(`If_missing 0o644) output_path
           (Cmarkit_commonmark.of_doc document);
-        let handler = Shark.Serve.router ~proc ~fs ~store output_path in
+        let handler = Shark_server.router ~proc ~fs ~store output_path in
         let addr = `Tcp (Eio.Net.Ipaddr.V4.any, port) in
         Eio.traceln "Running server on %a" Eio.Net.Sockaddr.pp addr;
         let socket = Eio.Net.listen net ~sw ~backlog:128 ~reuse_addr:true addr

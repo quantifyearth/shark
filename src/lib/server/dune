@@ -1,0 +1,17 @@
+(include_subdirs no)
+
+(rule
+ (deps js/main.bc.js)
+ (targets js.ml)
+ (action
+  (with-stdout-to
+   js.ml
+   (progn
+    (echo "let editor_js = {js|")
+    (run cat js/main.bc.js)
+    (echo "|js}")))))
+
+(library
+ (name shark_server)
+ (public_name shark.server)
+ (libraries shark cohttp-eio))
