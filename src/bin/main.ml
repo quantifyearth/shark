@@ -42,7 +42,7 @@ let fetcher_of_string s =
 
 let create_builder ~fs ~net ~domain_mgr fetcher (_, spec) conf =
   let (Store_spec.Store ((module Store), store)) =
-    Lwt_eio.Promise.await_lwt spec
+    Lwt_eio.run_lwt @@ fun () -> spec
   in
   let (module Fetcher) =
     match fetcher_of_string fetcher with
