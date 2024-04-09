@@ -3,13 +3,6 @@
 (library
  (name shark)
  (public_name shark)
- (libraries
-  eio
-  str
-  yaml
-  lwt_eio
-  cmarkit
-  obuilder
-  fpath)
+ (libraries eio str yaml lwt_eio cmarkit obuilder fpath)
  (preprocess
   (pps ppx_sexp_conv)))

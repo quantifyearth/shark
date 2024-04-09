@@ -7,7 +7,7 @@ val map_blocks :
   Cmarkit.Doc.t ->
   f:
     (image_hash_map:(string * string) list ref ->
-      data_hash_map:(Digest.t * string) list ref ->
+    data_hash_map:(Digest.t * string) list ref ->
     Cmarkit.Block.Code_block.t ->
     Block.t ->
     Cmarkit.Block.Code_block.t) ->
@@ -20,16 +20,14 @@ val map_blocks :
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
-
 val process_build_block :
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
   (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
 
-
 val process_run_block :
   image_hash_map:(string * string) list ->
-  data_image_list:(string * (Datafile.t list)) list ->
+  data_image_list:(string * Datafile.t list) list ->
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
   (Cmarkit.Block.Code_block.t * Block.t) Lwt.t

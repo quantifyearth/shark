@@ -133,47 +133,48 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
 
   let file_path = Eio.Path.(fs / file) in
   let template_markdown = Eio.Path.load file_path in
-  let ast = Shark.Ast.of_sharkdown ~template_markdown in 
+  let ast = Shark.Ast.of_sharkdown ~template_markdown in
 
   let f ~image_hash_map ~data_hash_map code_block block =
     if no_run then code_block
     else
       match Shark.Block.kind block with
-      | `Build -> 
-        let cb, blk =
-        Lwt_eio.Promise.await_lwt
-        @@ Shark.Md.process_build_block obuilder
-             (code_block, block)
-        in
-        image_hash_map :=
-          (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
-          :: !image_hash_map;
-        cb
+      | `Build ->
+          let cb, blk =
+            Lwt_eio.Promise.await_lwt
+            @@ Shark.Md.process_build_block obuilder (code_block, block)
+          in
+          image_hash_map :=
+            (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
+            :: !image_hash_map;
+          cb
+      | `Run ->
+          let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
+          let block_depenancies = Shark.Ast.find_dependancies ast blockid in
+          let input_hashes =
+            List.map
+              (fun hb ->
+                let hash =
+                  List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map
+                in
+                let _, outputs = Shark.Ast.Hyperblock.io hb in
+                (hash, outputs))
+              block_depenancies
+          in
 
-      | `Run ->   
-        let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
-        let block_depenancies = Shark.Ast.find_dependancies ast blockid in
-        let input_hashes = List.map (fun hb -> 
-          let hash = List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map in
-          let _, outputs = Shark.Ast.Hyperblock.io hb in
-          hash, outputs
-        ) block_depenancies in
-
-        let cb, result_block =
-        Lwt_eio.Promise.await_lwt
-        @@ Shark.Md.process_run_block ~image_hash_map:!image_hash_map ~data_image_list:input_hashes obuilder
-             (code_block, block)
-        in
-        data_hash_map :=
-          (Shark.Block.digest result_block, Option.get (Shark.Block.hash result_block))
-          :: !data_hash_map;
-        cb
+          let cb, result_block =
+            Lwt_eio.Promise.await_lwt
+            @@ Shark.Md.process_run_block ~image_hash_map:!image_hash_map
+                 ~data_image_list:input_hashes obuilder (code_block, block)
+          in
+          data_hash_map :=
+            ( Shark.Block.digest result_block,
+              Option.get (Shark.Block.hash result_block) )
+            :: !data_hash_map;
+          cb
   in
 
-  
-  
   let document = Shark.Md.map_blocks doc ~f in
-
 
   Eio.Switch.run @@ fun sw ->
   let run_server () =

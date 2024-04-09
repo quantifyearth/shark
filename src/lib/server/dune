@@ -14,9 +14,4 @@
 (library
  (name shark_server)
  (public_name shark.server)
- (libraries
-   shark 
-   cohttp-eio
-   htmlit
-   routes
-   ))
+ (libraries shark cohttp-eio htmlit routes))
