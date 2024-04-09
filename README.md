@@ -60,7 +60,8 @@ the [promoted output version](./specs/shark.out.md).
 $ patdiff -ascii specs/shark.md specs/shark.out.md
 ------ specs/shark.md
 ++++++ specs/shark.out.md
-@|-1,28 +1,30 ============================================================
+@|-1,31 +1,33 ============================================================
+ |
  |# Markdown Shark Support
  |
  |The `shark` executable also can work with markdown documents. Two blocks can be
@@ -71,9 +72,9 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
  |## Shark Build
  |
 -|```shark-build:gdal-env
-+|```shark-build:gdal-env:f2021ca0e994edd2acbdf227ec98714525af89f8c7ae738af686beb3f5969af9
++|```shark-build:gdal-env:ec610a45b8d858c2eba37fd40dd1764890828557c1c43fa84ec88c7fcdc087c1
  |((from osgeo/gdal:ubuntu-small-3.6.3)
- | (run (shell "echo 'Something for the log!'")))
+ | (run (shell "mkdir -p /data && echo 'Something for the log!'")))
  |```
  |
  |Once we have a GDAL environment available to us, we can write shell fragments
@@ -82,16 +83,19 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
  |## Shark Run
  |
 -|```shark-run:gdal-env
-+|```shark-run:gdal-env:00c8a07aff287577bce80fed68567b86f6cefcfd9376769c42942c16020ce9c5
- |$ mkdir /data
++|```shark-run:gdal-env:1dd3d7fdb8f1f485dd5aa0d5f383209a60aca98e67552d03a54c99be8b610eca
  |$ gdalinfo --version > /data/gdal.version
+ |```
+ |
+ |Shark keeps track of inputs and outputs. In the next code block, Shark knows to wire
+ |up `/data/gdal.version` into the container.
+ |
+-|```shark-run:gdal-env
++|```shark-run:gdal-env:e02469d800253ccf95e53b583e4a91465375a4e41479a67408331ecdeedb713e
  |$ cat /data/gdal.version
 +|GDAL 3.6.3, released 2023/03/07
 +|
  |```
- |
- |Of course we can make use of the pretty good networking reproducibility.
- |
  |
 [1]
 ```

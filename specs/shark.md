@@ -1,3 +1,4 @@
+
 # Markdown Shark Support
 
 The `shark` executable also can work with markdown documents. Two blocks can be
@@ -9,7 +10,7 @@ built and can be referenced as the context for future `shark-run` blocks.
 
 ```shark-build:gdal-env
 ((from osgeo/gdal:ubuntu-small-3.6.3)
- (run (shell "echo 'Something for the log!'")))
+ (run (shell "mkdir -p /data && echo 'Something for the log!'")))
 ```
 
 Once we have a GDAL environment available to us, we can write shell fragments
@@ -18,11 +19,13 @@ using that environment.
 ## Shark Run
 
 ```shark-run:gdal-env
-$ mkdir /data
 $ gdalinfo --version > /data/gdal.version
-$ cat /data/gdal.version
 ```
 
-Of course we can make use of the pretty good networking reproducibility.
+Shark keeps track of inputs and outputs. In the next code block, Shark knows to wire
+up `/data/gdal.version` into the container.
 
+```shark-run:gdal-env
+$ cat /data/gdal.version
+```
 
