@@ -64,3 +64,5 @@ let command_list b =
   |> String.cuts ~sep:"\n" |> List.map String.trim
   |> List.map (Str.global_replace regex_whitespace " ")
   |> List.filter_map (fun l -> match l with "" -> None | x -> Some x)
+
+let digest b = Digest.string b.body

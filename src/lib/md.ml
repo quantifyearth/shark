@@ -1,7 +1,9 @@
 open Lwt.Infix
 
 let map_blocks (doc : Cmarkit.Doc.t) ~f =
-  let alias_hash_map = ref [] in
+  let image_hash_map = ref [] in
+  let data_hash_map = ref [] in
+
   let block _mapper = function
     | Cmarkit.Block.Code_block (node, meta) -> (
         match Cmarkit.Block.Code_block.info_string node with
@@ -13,7 +15,7 @@ let map_blocks (doc : Cmarkit.Doc.t) ~f =
             in
             match Block.of_info_string ~body s with
             | Some block ->
-                let new_block = f ~alias_hash_map node block in
+                let new_block = f ~image_hash_map ~data_hash_map node block in
                 `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
             | None -> `Default))
     | _ -> `Default
@@ -36,8 +38,8 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_block ~alias_hash_map (Builder ((module Builder), builder))
-    (code_block, block) =
+
+let process_build_block (Builder ((module Builder), builder)) (code_block, block) =
   match Block.kind block with
   | `Build -> (
       let spec =
@@ -58,6 +60,12 @@ let process_block ~alias_hash_map (Builder ((module Builder), builder))
               (Cmarkit.Block.Code_block.code code_block)
           in
           Lwt.return (new_code_block, block))
+  | `Run -> failwith "expected build"
+
+let process_run_block ~image_hash_map ~data_image_list (Builder ((module Builder), builder))
+    (_code_block, block) =
+  match Block.kind block with
+  | `Build -> failwith "expected run"
   | `Run ->
       let commands =
         String.split_on_char '\n' (Block.body block)
@@ -66,10 +74,19 @@ let process_block ~alias_hash_map (Builder ((module Builder), builder))
       let commands_stripped =
         List.map (fun s -> String.sub s 1 (String.length s - 1)) commands
       in
-      let build = List.assoc (Block.alias block) alias_hash_map in
+      let build = List.assoc (Block.alias block) image_hash_map in
+      Printf.printf "asdasd\n";
+      let rom = List.map (fun x -> 
+        Printf.printf "%s\n" x;
+        Obuilder_spec.Rom.of_build ~hash:x ~build_dir:"/data" "/test"
+      ) data_image_list in
       let spec build_hash command =
         let open Obuilder_spec in
-        stage ~from:(`Build build_hash) [ run "%s" command ]
+        stage ~from:(`Build build_hash) [ 
+        user_unix ~uid:0 ~gid:0;
+        workdir "/root"; 
+        if (List.length data_image_list) > 0 then run "ln -s /test /data" else run "echo foo";
+        run ~network:["host"] ~rom "%s" command ]
       in
       let process (outputs, build_hash) command =
         Logs.info (fun f ->

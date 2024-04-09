@@ -49,3 +49,5 @@ val kind : t -> kind
 
 val body : t -> string
 (** The body of the block *)
+
+val digest : t -> string

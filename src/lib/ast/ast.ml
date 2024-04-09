@@ -269,6 +269,12 @@ let of_sharkdown ~template_markdown =
     ) id_all_hyperblocks
   ) in
 
+  Printf.printf "writers:\n";
+  List.iter (fun x ->
+    let o, id = x in
+    Printf.printf "\t%s -> %d\n" (Fpath.to_string (Datafile.path o)) id
+  ) writers;
+
   let edges = List.concat (
     List.map (fun x ->
       let hbid, h = x in
@@ -286,3 +292,25 @@ let of_sharkdown ~template_markdown =
     edges
   }
   
+let find_id_of_block ast b =
+  let d = Block.digest b in
+  let rec loop l = 
+    match l with
+    | [] -> None
+    | hd :: tl -> (
+      let id, hb = hd in
+      let b = Hyperblock.block hb in
+      if (Block.digest b) = d then Some id else loop tl
+    )
+  in loop ast.nodes
+
+let find_dependancies ast id =
+  Printf.printf "finding for %d\n" id;
+  Printf.printf "eddge count %d\n" (List.length ast.edges);
+  List.filter_map (fun (edge:block_id * block_id): block_id option -> 
+    let from, too = edge in
+    Printf.printf "%d -> %d\n" from too;
+    if (too = id) then Some from else None
+  ) ast.edges
+  |> List.map (fun id -> List.assoc id ast.nodes) 
+  |> List.map Hyperblock.block

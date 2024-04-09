@@ -130,20 +130,57 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
     In_channel.with_open_bin file @@ fun ic ->
     Cmarkit.Doc.of_string (In_channel.input_all ic)
   in
-  let f ~alias_hash_map code_block block =
+
+  let file_path = Eio.Path.(fs / file) in
+  let template_markdown = Eio.Path.load file_path in
+  let ast = Shark.Ast.of_sharkdown ~template_markdown in 
+
+  let f ~image_hash_map ~data_hash_map code_block block =
     if no_run then code_block
     else
-      let cb, blk =
+      match Shark.Block.kind block with
+      | `Build -> 
+        let cb, blk =
         Lwt_eio.Promise.await_lwt
-        @@ Shark.Md.process_block ~alias_hash_map:!alias_hash_map obuilder
+        @@ Shark.Md.process_build_block obuilder
              (code_block, block)
-      in
-      alias_hash_map :=
-        (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
-        :: !alias_hash_map;
-      cb
+        in
+        image_hash_map :=
+          (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
+          :: !image_hash_map;
+        cb
+
+      | `Run ->   
+        Printf.printf "data hashes %d\n" (List.length !data_hash_map);
+        List.iter (fun x ->
+          let a, b = x in
+          Printf.printf "\t%s -> %s\n" a b
+        ) !data_hash_map;
+
+        let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
+        let block_depenancies = Shark.Ast.find_dependancies ast blockid in
+        Printf.printf "input depen %d\n" (List.length block_depenancies);
+        let input_hashes = List.map (fun b -> 
+          List.assoc (Shark.Block.digest b) !data_hash_map
+        ) block_depenancies in
+        Printf.printf "input hashes %d\n" (List.length input_hashes);
+
+        let cb, blk =
+        Lwt_eio.Promise.await_lwt
+        @@ Shark.Md.process_run_block ~image_hash_map:!image_hash_map ~data_image_list:input_hashes obuilder
+             (code_block, block)
+        in
+        data_hash_map :=
+          (Shark.Block.digest blk, Option.get (Shark.Block.hash blk))
+          :: !data_hash_map;
+        cb
   in
+
+  
+  
   let document = Shark.Md.map_blocks doc ~f in
+
+
   Eio.Switch.run @@ fun sw ->
   let run_server () =
     match port with
