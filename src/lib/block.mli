@@ -6,21 +6,27 @@ code blocks "language".
 
 After [shark-build] and separated by a [:] there is the build's alias
 which [shark-run] commands can reference in the same way to tell
-{e shark} to use that build environment to execute the command. *)
+{e shark} to use that build environment to execute the command.
+
+[shark-publish] blocks are different. They allow you to export data
+from shark along with its build description. At the moment only
+exporting to the local filesystem is supported. *)
 
 type t
 (** A shark block *)
 
-type kind = [ `Build | `Run ]
-
-val v : ?hash:string -> alias:string -> body:string -> kind -> t
+val build_or_run :
+  ?hash:string -> alias:string -> body:string -> [ `Run | `Build ] -> t
 (** Construct a custom block. *)
+
+val publish : ?output:[ `Directory of string ] -> string -> t
+(** A publish block with a body. Default output is [`Directory "./_shark"] *)
 
 val pp : t Fmt.t
 (** A pretty printer for blocks. *)
 
 val with_hash : t -> string -> t
-(** [with_hash block] is [block] with a new hash. *)
+(** [with_hash block] is [block] with a new hash. Publish blocks remain unchanged. *)
 
 val of_info_string :
   ?default:(info:string -> body:string -> t option) ->
@@ -44,10 +50,11 @@ val alias : t -> string
 val hash : t -> string option
 (** If a block has been run it will hash a build hash *)
 
-val kind : t -> kind
+val kind : t -> [ `Run | `Build | `Publish ]
 (** The kind of block *)
 
 val body : t -> string
 (** The body of the block *)
 
+val output : t -> [ `Directory of string ]
 val digest : t -> string

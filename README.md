@@ -60,7 +60,7 @@ the [promoted output version](./specs/shark.out.md).
 $ patdiff -ascii specs/shark.md specs/shark.out.md
 ------ specs/shark.md
 ++++++ specs/shark.out.md
-@|-1,31 +1,33 ============================================================
+@|-1,40 +1,42 ============================================================
  |
  |# Markdown Shark Support
  |
@@ -97,6 +97,15 @@ $ patdiff -ascii specs/shark.md specs/shark.out.md
 +|
  |```
  |
+ |## Shark Publish
+ |
+ |Shark allows you to export data directly from the Shark world using a publish block. By default
+ |this will publish to a `_shark` directory in the current working directory. Use the same file path
+ |conventions to export data blobs.
+ |
+ |```shark-publish
+ |/data/gdal.version
+ |```
 [1]
 ```
 

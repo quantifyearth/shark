@@ -58,7 +58,7 @@ let parse_frontmatter frontmatter =
    initial benefit. *)
 type section_group = { name : string; children : Block.t list }
 
-let default ~info ~body = Some (Block.v ~alias:info ~body `Run)
+let default ~info ~body = Some (Block.build_or_run ~alias:info ~body `Run)
 
 let parse_markdown markdown =
   let doc = Cmarkit.Doc.of_string markdown in
@@ -292,7 +292,7 @@ let find_id_of_block ast b =
   in
   loop ast.nodes
 
-let find_dependancies ast id =
+let find_dependencies ast id =
   List.filter_map
     (fun (edge : block_id * block_id) : block_id option ->
       let from, too = edge in
