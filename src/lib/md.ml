@@ -153,18 +153,20 @@ let process_publish_block ~input_hashes
   match Block.kind block with
   | `Publish ->
       let process (hash, files) =
-        let file = List.hd files in
-        Store.result store hash >>= function
-        | None -> Lwt.fail_with "FOO"
-        | Some f ->
-            let path = Datafile.path file |> Fpath.to_string in
-            copy
-              ~src:(Filename.concat (Filename.concat f "rootfs") path)
-              ~dst:"./_shark" ()
+        let copy_file file =
+          Store.result store hash >>= function
+          | None ->
+              Lwt.fail_with
+                (Fmt.str "No result found for %s whilst publishing %a" hash
+                   Fpath.pp (Datafile.path file))
+          | Some f ->
+              let path = Datafile.path file |> Fpath.to_string in
+              copy
+                ~src:(Filename.concat (Filename.concat f "rootfs") path)
+                ~dst:"./_shark" ()
+        in
+        Lwt_list.iter_s copy_file files
       in
       Lwt_list.iter_s process input_hashes >>= fun () ->
-      Eio.traceln "Publish: %a"
-        Fmt.(list (pair string (list Datafile.pp)))
-        input_hashes;
       Lwt.return (_code_block, block)
   | _ -> failwith "Expected Publish Block"
