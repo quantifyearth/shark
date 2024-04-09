@@ -31,3 +31,12 @@ GDAL 3.6.3, released 2023/03/07
 
 ```
 
+## Shark Publish
+
+Shark allows you to export data directly from the Shark world using a publish block. By default
+this will publish to a `_shark` directory in the current working directory. Use the same file path
+conventions to export data blobs.
+
+```shark-publish
+/data/gdal.version
+```
