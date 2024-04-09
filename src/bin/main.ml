@@ -3,8 +3,6 @@ let ( / ) = Filename.concat
 module Sandbox = Obuilder.Native_sandbox
 module Store_spec = Obuilder.Store_spec
 
-let await = Lwt_eio.Promise.await_lwt
-
 let store_of_string = function
   | `Rsync path -> `Rsync (path, Obuilder.Rsync_store.Copy)
   | (`Zfs _ | `Btrfs _ | `Xfs _ | `Docker _) as v -> v
@@ -43,7 +41,9 @@ let fetcher_of_string s =
   | s -> Fmt.failwith "Unknown fetching backend: %s" s
 
 let create_builder ~fs ~net ~domain_mgr fetcher (_, spec) conf =
-  let (Store_spec.Store ((module Store), store)) = await spec in
+  let (Store_spec.Store ((module Store), store)) =
+    Lwt_eio.Promise.await_lwt spec
+  in
   let (module Fetcher) =
     match fetcher_of_string fetcher with
     | `Docker -> (module Obuilder.Docker.Extract : Obuilder.S.FETCHER)
@@ -53,7 +53,8 @@ let create_builder ~fs ~net ~domain_mgr fetcher (_, spec) conf =
   in
   let module Builder = Obuilder.Builder (Store) (Sandbox) (Fetcher) in
   let sandbox =
-    await @@ Sandbox.create ~state_dir:(Store.state_dir store / "sandbox") conf
+    Lwt_eio.run_lwt @@ fun () ->
+    Sandbox.create ~state_dir:(Store.state_dir store / "sandbox") conf
   in
   let builder = Builder.v ~store ~sandbox in
   Shark.Md.Builder ((module Builder), builder)
@@ -70,13 +71,15 @@ let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets fetcher =
   let (Builder ((module Builder), builder)) =
     create_builder ~fs ~net ~domain_mgr fetcher store conf
   in
-  Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
+  Fun.protect ~finally:(fun () ->
+      Lwt_eio.run_lwt @@ fun () -> Builder.finish builder)
+  @@ fun () ->
   let spec = Obuilder.Spec.t_of_sexp (Sexplib.Sexp.load_sexp spec) in
   let secrets =
     List.map (fun (id, path) -> (id, read_whole_file path)) secrets
   in
   let context = Obuilder.Context.v ~log ~src_dir ~secrets () in
-  match await @@ Builder.build builder context spec with
+  match Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec with
   | Ok x ->
       Fmt.pr "Got: %S@." (x :> string);
       Ok ()
@@ -89,9 +92,11 @@ let run ~fs ~net ~domain_mgr () store conf id fetcher =
   let (Builder ((module Builder), builder)) =
     create_builder ~fs ~net ~domain_mgr fetcher store conf
   in
-  Fun.protect ~finally:(fun () -> await @@ Builder.finish builder) @@ fun () ->
-  let _, v = Builder.shell builder id in
-  match await v with
+  Fun.protect ~finally:(fun () ->
+      Lwt_eio.run_lwt @@ fun () -> Builder.finish builder)
+  @@ fun () ->
+  let v = Lwt_eio.run_lwt @@ fun () -> Builder.shell builder id |> snd in
+  match v with
   | Ok _ as v -> v
   | Error `Cancelled -> Error "Cancelled at user's request@."
   | Error (`Msg m) -> Error (Fmt.str "Build step failed: %s" m)
@@ -162,8 +167,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
           cb
       | `Build ->
           let cb, blk =
-            Lwt_eio.Promise.await_lwt
-            @@ Shark.Md.process_build_block obuilder (code_block, block)
+            Lwt_eio.run_lwt @@ fun () ->
+            Shark.Md.process_build_block obuilder (code_block, block)
           in
           image_hash_map :=
             (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
@@ -183,9 +188,9 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
               block_dependencies
           in
           let cb, result_block =
-            Lwt_eio.Promise.await_lwt
-            @@ Shark.Md.process_run_block ~image_hash_map:!image_hash_map
-                 ~data_image_list:input_hashes obuilder (code_block, block)
+            Lwt_eio.run_lwt @@ fun () ->
+            Shark.Md.process_run_block ~image_hash_map:!image_hash_map
+              ~data_image_list:input_hashes obuilder (code_block, block)
           in
           data_hash_map :=
             ( Shark.Block.digest result_block,
