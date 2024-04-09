@@ -15,6 +15,8 @@ module Hyperblock = struct
   let commands h = h.commands
   let context h = h.context
 
+  let digest h = Block.digest h.block
+
   let io h = 
     let all_inputs, all_outputs = List.fold_left (fun acc v ->
       let inputs, outputs = acc in
@@ -269,12 +271,6 @@ let of_sharkdown ~template_markdown =
     ) id_all_hyperblocks
   ) in
 
-  Printf.printf "writers:\n";
-  List.iter (fun x ->
-    let o, id = x in
-    Printf.printf "\t%s -> %d\n" (Fpath.to_string (Datafile.path o)) id
-  ) writers;
-
   let edges = List.concat (
     List.map (fun x ->
       let hbid, h = x in
@@ -305,12 +301,8 @@ let find_id_of_block ast b =
   in loop ast.nodes
 
 let find_dependancies ast id =
-  Printf.printf "finding for %d\n" id;
-  Printf.printf "eddge count %d\n" (List.length ast.edges);
   List.filter_map (fun (edge:block_id * block_id): block_id option -> 
     let from, too = edge in
-    Printf.printf "%d -> %d\n" from too;
     if (too = id) then Some from else None
   ) ast.edges
-  |> List.map (fun id -> List.assoc id ast.nodes) 
-  |> List.map Hyperblock.block
+  |> List.map (fun id -> List.assoc id ast.nodes)

@@ -29,7 +29,7 @@ val process_build_block :
 
 val process_run_block :
   image_hash_map:(string * string) list ->
-  data_image_list:string list ->
+  data_image_list:(string * (Datafile.t list)) list ->
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
   (Cmarkit.Block.Code_block.t * Block.t) Lwt.t

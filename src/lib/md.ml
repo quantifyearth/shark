@@ -75,18 +75,31 @@ let process_run_block ~image_hash_map ~data_image_list (Builder ((module Builder
         List.map (fun s -> String.sub s 1 (String.length s - 1)) commands
       in
       let build = List.assoc (Block.alias block) image_hash_map in
-      Printf.printf "asdasd\n";
-      let rom = List.map (fun x -> 
-        Printf.printf "%s\n" x;
-        Obuilder_spec.Rom.of_build ~hash:x ~build_dir:"/data" "/test"
+      let rom = List.map (fun input_info ->
+        let hash, _ = input_info in 
+        let mount = "/shark/" ^ hash in
+        Obuilder_spec.Rom.of_build ~hash:hash ~build_dir:"/data" mount
+      ) data_image_list in
+      let links = List.concat_map (fun input_info ->
+        let hash, paths = input_info in
+        let open Fpath in 
+        let base = (Fpath.v "/shark") / hash in
+        List.concat_map (fun (p : Datafile.t) ->
+          let p = Datafile.path p in
+          let src = base // (Option.get (relativize ~root:(Fpath.v "/data/") p)) in
+          let open Obuilder_spec in
+          let target_dir, _ = split_base p in
+          [
+            run "mkdir -p %s" (Fpath.to_string target_dir) ;
+            run "ln -s %s %s || true" (Fpath.to_string src) (Fpath.to_string p);
+          ]
+        ) paths
       ) data_image_list in
       let spec build_hash command =
         let open Obuilder_spec in
-        stage ~from:(`Build build_hash) [ 
+        stage ~from:(`Build build_hash) ([ 
         user_unix ~uid:0 ~gid:0;
-        workdir "/root"; 
-        if (List.length data_image_list) > 0 then run "ln -s /test /data" else run "echo foo";
-        run ~network:["host"] ~rom "%s" command ]
+        workdir "/root"] @ links @ [run ~network:["host"] ~rom "%s" command ])
       in
       let process (outputs, build_hash) command =
         Logs.info (fun f ->

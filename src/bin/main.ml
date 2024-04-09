@@ -151,27 +151,21 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
         cb
 
       | `Run ->   
-        Printf.printf "data hashes %d\n" (List.length !data_hash_map);
-        List.iter (fun x ->
-          let a, b = x in
-          Printf.printf "\t%s -> %s\n" a b
-        ) !data_hash_map;
-
         let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
         let block_depenancies = Shark.Ast.find_dependancies ast blockid in
-        Printf.printf "input depen %d\n" (List.length block_depenancies);
-        let input_hashes = List.map (fun b -> 
-          List.assoc (Shark.Block.digest b) !data_hash_map
+        let input_hashes = List.map (fun hb -> 
+          let hash = List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map in
+          let _, outputs = Shark.Ast.Hyperblock.io hb in
+          hash, outputs
         ) block_depenancies in
-        Printf.printf "input hashes %d\n" (List.length input_hashes);
 
-        let cb, blk =
+        let cb, result_block =
         Lwt_eio.Promise.await_lwt
         @@ Shark.Md.process_run_block ~image_hash_map:!image_hash_map ~data_image_list:input_hashes obuilder
              (code_block, block)
         in
         data_hash_map :=
-          (Shark.Block.digest blk, Option.get (Shark.Block.hash blk))
+          (Shark.Block.digest result_block, Option.get (Shark.Block.hash result_block))
           :: !data_hash_map;
         cb
   in

@@ -8,6 +8,7 @@ module Hyperblock: sig
   type t
   val block: t -> Block.t
   val io: t -> (Datafile.t list * Datafile.t list)
+  val digest: t -> string
 end
 
 module Section: sig
@@ -24,7 +25,7 @@ val of_sharkdown : template_markdown:string -> t
 
 val find_id_of_block : t -> Block.t -> block_id option
 
-val find_dependancies : t -> block_id -> Block.t list
+val find_dependancies : t -> block_id -> Hyperblock.t list
 
 val to_list : t -> Commandgroup.t list
 (** Convert the AST to a list of command blocks. *)
