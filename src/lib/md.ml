@@ -60,12 +60,11 @@ let process_build_block (Builder ((module Builder), builder)) (code_block, block
               (Cmarkit.Block.Code_block.code code_block)
           in
           Lwt.return (new_code_block, block))
-  | `Run -> failwith "expected build"
+  | _ -> failwith "expected build"
 
 let process_run_block ~image_hash_map ~data_image_list
     (Builder ((module Builder), builder)) (_code_block, block) =
   match Block.kind block with
-  | `Build -> failwith "expected run"
   | `Run ->
       let commands =
         String.split_on_char '\n' (Block.body block)
@@ -139,3 +138,33 @@ let process_run_block ~image_hash_map ~data_image_list
       let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       Lwt.return (Cmarkit.Block.Code_block.make ~info_string body, block)
+  | _ -> failwith "expected run"
+
+let copy ?chown ~src ~dst () =
+  let chown =
+    match chown with Some uid_gid -> [ "--chown"; uid_gid ] | None -> []
+  in
+  let cmd = [ "rsync"; "-aHq" ] @ chown @ [ src; dst ] in
+  Obuilder.Os.ensure_dir dst;
+  Obuilder.Os.sudo cmd
+
+let process_publish_block ~input_hashes
+    (Obuilder.Store_spec.Store ((module Store), store)) (_code_block, block) =
+  match Block.kind block with
+  | `Publish ->
+      let process (hash, files) =
+        let file = List.hd files in
+        Store.result store hash >>= function
+        | None -> Lwt.fail_with "FOO"
+        | Some f ->
+            let path = Datafile.path file |> Fpath.to_string in
+            copy
+              ~src:(Filename.concat (Filename.concat f "rootfs") path)
+              ~dst:"./_shark" ()
+      in
+      Lwt_list.iter_s process input_hashes >>= fun () ->
+      Eio.traceln "Publish: %a"
+        Fmt.(list (pair string (list Datafile.pp)))
+        input_hashes;
+      Lwt.return (_code_block, block)
+  | _ -> failwith "Expected Publish Block"

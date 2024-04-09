@@ -139,6 +139,27 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
     if no_run then code_block
     else
       match Shark.Block.kind block with
+      | `Publish ->
+          let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
+          let block_dependencies = Shark.Ast.find_dependencies ast blockid in
+          let input_hashes =
+            List.map
+              (fun hb ->
+                let hash =
+                  List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map
+                in
+                let _, outputs = Shark.Ast.Hyperblock.io hb in
+                (hash, outputs))
+              block_dependencies
+          in
+          let cb, _blk =
+            let open Lwt.Infix in
+            Lwt_eio.run_lwt @@ fun () ->
+            store >>= fun store ->
+            Shark.Md.process_publish_block ~input_hashes store
+              (code_block, block)
+          in
+          cb
       | `Build ->
           let cb, blk =
             Lwt_eio.Promise.await_lwt
@@ -150,7 +171,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
           cb
       | `Run ->
           let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
-          let block_depenancies = Shark.Ast.find_dependancies ast blockid in
+          let block_dependencies = Shark.Ast.find_dependencies ast blockid in
           let input_hashes =
             List.map
               (fun hb ->
@@ -159,9 +180,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
                 in
                 let _, outputs = Shark.Ast.Hyperblock.io hb in
                 (hash, outputs))
-              block_depenancies
+              block_dependencies
           in
-
           let cb, result_block =
             Lwt_eio.Promise.await_lwt
             @@ Shark.Md.process_run_block ~image_hash_map:!image_hash_map

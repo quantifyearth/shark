@@ -1,24 +1,23 @@
 open Astring
+open Sexplib.Conv
 
-type kind = [ `Build | `Run ]
+type build_and_run = { hash : string option; alias : string; body : string }
+[@@deriving sexp]
 
-let pp_kind ppf = function
-  | `Build -> Fmt.pf ppf "build"
-  | `Run -> Fmt.pf ppf "run"
+type publish = { body : string; output : [ `Directory of string ] }
+[@@deriving sexp]
 
-type t = { kind : kind; hash : string option; alias : string; body : string }
+type t =
+  [ `Build of build_and_run | `Run of build_and_run | `Publish of publish ]
+[@@deriving sexp]
 
-let v ?hash ~alias ~body kind = { alias; body; kind; hash }
+let build_or_run ?hash ~alias ~body kind =
+  match kind with
+  | `Run -> `Run { alias; body; hash }
+  | `Build -> `Build { alias; body; hash }
 
-let pp ppf t =
-  Fmt.record
-    [
-      Fmt.field "kind" (fun t -> t.kind) pp_kind;
-      Fmt.field "hash" (fun t -> t.hash) Fmt.(option string);
-      Fmt.field "alias" (fun t -> t.alias) Fmt.string;
-      Fmt.field "body" (fun t -> t.body) Fmt.string;
-    ]
-    ppf t
+let publish ?(output = `Directory "./_shark") body = `Publish { body; output }
+let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 
 let of_info_string ?(default = fun ~info:_ ~body:_ -> None) ~body s =
   match Astring.String.cuts ~sep:":" s with
@@ -29,7 +28,7 @@ let of_info_string ?(default = fun ~info:_ ~body:_ -> None) ~body s =
         | [ env; hash ] -> (env, Some hash)
         | _ -> failwith "Malformed env and hash"
       in
-      Some { kind = `Build; hash; alias = env; body }
+      Some (`Build { hash; alias = env; body })
   | "shark-run" :: rest ->
       let env, hash =
         match rest with
@@ -37,32 +36,63 @@ let of_info_string ?(default = fun ~info:_ ~body:_ -> None) ~body s =
         | [ env; hash ] -> (env, Some hash)
         | _ -> failwith "Malformed env and hash"
       in
-      Some { kind = `Run; hash; alias = env; body }
+      Some (`Run { hash; alias = env; body })
+  | "shark-publish" :: rest ->
+      let output =
+        match rest with
+        | [] | [ "" ] -> None
+        | [ dir ] -> Some (`Directory dir)
+        | _ -> failwith "Unknown publishing output"
+      in
+      Some (publish ?output body)
   | _ -> default ~info:s ~body
 
-let to_info_string t =
-  match t.kind with
-  | `Build -> (
-      Fmt.str "shark-build:%s" t.alias
-      ^ match t.hash with Some hash -> ":" ^ hash | None -> "")
-  | `Run -> (
-      Fmt.str "shark-run:%s" t.alias
-      ^ match t.hash with Some hash -> ":" ^ hash | None -> "")
+let to_info_string = function
+  | `Build { hash; alias; _ } -> (
+      Fmt.str "shark-build:%s" alias
+      ^ match hash with Some hash -> ":" ^ hash | None -> "")
+  | `Run { hash; alias; _ } -> (
+      Fmt.str "shark-run:%s" alias
+      ^ match hash with Some hash -> ":" ^ hash | None -> "")
+  | `Publish _ -> "shark-publish"
 
-let body b = b.body
-let alias b = b.alias
-let hash b = b.hash
-let kind b = b.kind
-let with_hash b hash = { b with hash = Some hash }
+let body : t -> string = function
+  | `Publish { body; _ } | `Run { body; _ } | `Build { body; _ } -> body
 
-let command_list b =
-  let regex_newline = Str.regexp "\\\\\n"
-  and regex_comment = Str.regexp "#.*$"
-  and regex_whitespace = Str.regexp "[\t ]+" in
-  Str.global_replace regex_newline "" b.body
-  |> Str.global_replace regex_comment ""
-  |> String.cuts ~sep:"\n" |> List.map String.trim
-  |> List.map (Str.global_replace regex_whitespace " ")
-  |> List.filter_map (fun l -> match l with "" -> None | x -> Some x)
+let alias = function
+  | `Publish _ -> invalid_arg "Expected body or run"
+  | `Run b | `Build b -> b.alias
 
-let digest b = Digest.string b.body
+let hash = function
+  | `Publish _ -> invalid_arg "Expected body or run"
+  | `Run b | `Build b -> b.hash
+
+let kind = function
+  | `Build _ -> `Build
+  | `Run _ -> `Run
+  | `Publish _ -> `Publish
+
+let output = function
+  | `Publish { output; _ } -> output
+  | _ -> invalid_arg "Expected a publish block"
+
+let with_hash (b : t) hash =
+  match b with
+  | `Build b -> `Build { b with hash = Some hash }
+  | `Run b -> `Run { b with hash = Some hash }
+  | `Publish b -> `Publish b
+
+let command_list : t -> string list = function
+  | `Publish { body; _ } | `Run { body; _ } | `Build { body; _ } ->
+      let regex_newline = Str.regexp "\\\\\n"
+      and regex_comment = Str.regexp "#.*$"
+      and regex_whitespace = Str.regexp "[\t ]+" in
+      Str.global_replace regex_newline "" body
+      |> Str.global_replace regex_comment ""
+      |> String.cuts ~sep:"\n" |> List.map String.trim
+      |> List.map (Str.global_replace regex_whitespace " ")
+      |> List.filter_map (fun l -> match l with "" -> None | x -> Some x)
+
+let digest : t -> string = function
+  | `Publish { body; _ } | `Run { body; _ } | `Build { body; _ } ->
+      Digest.string body

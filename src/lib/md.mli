@@ -31,3 +31,9 @@ val process_run_block :
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
   (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
+
+val process_publish_block :
+  input_hashes:(string * Datafile.t list) list ->
+  Obuilder.Store_spec.store ->
+  Cmarkit.Block.Code_block.t * Block.t ->
+  (Cmarkit.Block.Code_block.t * Block.t) Lwt.t

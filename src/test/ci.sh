@@ -22,6 +22,8 @@ case "$1" in
         sudo chown "$(whoami)" /rsync
 
         sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.md --store=rsync:/rsync --verbose
+        
+        cat ./_shark/gdal.version
 
         sudo rm -rf /rsync
         ;;
