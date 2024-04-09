@@ -221,10 +221,10 @@ let custom_document_renderer _ = function
       (* We're only interested in getting the hash here. *)
       let info =
         Cmarkit.Block.Code_block.info_string node |> fun v ->
-        Option.bind v (fun (v, _) -> Block.of_info_string ~body:"" v)
+        Option.bind v (fun (v, _) -> Shark.Block.of_info_string ~body:"" v)
       in
       let info_block =
-        match Option.bind info (fun v -> Block.hash v) with
+        match Option.bind info (fun v -> Shark.Block.hash v) with
         | None ->
             Cmarkit.Block.Thematic_break
               (Cmarkit.Block.Thematic_break.make (), Cmarkit.Meta.none)
@@ -442,7 +442,7 @@ let run_dot proc dot =
 
 let serve_dot proc _req body =
   let template_markdown = Eio.Flow.read_all body in
-  let txt = Dotrenderer.render ~template_markdown in
+  let txt = Shark.Dotrenderer.render ~template_markdown in
   let png = run_dot proc txt |> Base64.encode_string in
   respond_txt png
 

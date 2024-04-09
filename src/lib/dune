@@ -2,27 +2,14 @@
 
 (library
  (name shark)
+ (public_name shark)
  (libraries
   eio
-  cohttp-eio
   str
   yaml
   lwt_eio
   cmarkit
   obuilder
-  htmlit
-  routes
   fpath)
  (preprocess
   (pps ppx_sexp_conv)))
-
-(rule
- (deps js/main.bc.js)
- (targets js.ml)
- (action
-  (with-stdout-to
-   js.ml
-   (progn
-    (echo "let editor_js = {js|")
-    (run cat js/main.bc.js)
-    (echo "|js}")))))

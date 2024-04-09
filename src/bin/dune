@@ -4,6 +4,7 @@
  (libraries
   eio_main
   shark
+  shark.server
   lwt.unix
   obuilder
   logs.cli
