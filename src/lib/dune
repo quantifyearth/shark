@@ -5,14 +5,11 @@
  (public_name shark)
  (libraries
   eio
-  cohttp-eio
   str
   yaml
   lwt_eio
   cmarkit
   obuilder
-  htmlit
-  routes
   fpath)
  (preprocess
   (pps ppx_sexp_conv)))
