@@ -12,7 +12,7 @@ which [shark-run] commands can reference in the same way to tell
 from shark along with its build description. At the moment only
 exporting to the local filesystem is supported. *)
 
-type t
+type t [@@deriving sexp]
 (** A shark block *)
 
 val build_or_run :

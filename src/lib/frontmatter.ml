@@ -40,7 +40,7 @@ let of_yaml = function
             match Fpath.of_string p with
             | Error e ->
                 failwith
-                  (Printf.sprintf "Malformed input path %s"
+                  (Fmt.str "Malformed input path %s"
                      (match e with `Msg x -> x))
             | Ok p -> Fpath.normalize p)
           raw_inputs

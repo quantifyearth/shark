@@ -8,8 +8,11 @@ module Hyperblock : sig
   type t
 
   val block : t -> Block.t
+  val commands : t -> Leaf.t list
+  val context : t -> string
   val io : t -> Datafile.t list * Datafile.t list
   val digest : t -> string
+  val pp : t Fmt.t
 end
 
 module Section : sig
@@ -18,13 +21,15 @@ module Section : sig
   val name : t -> string
 end
 
-type block_id
+type block_id [@@deriving sexp]
 
-type t
+type t [@@deriving sexp]
 (** An AST instance *)
 
+val pp : t Fmt.t
 val of_sharkdown : template_markdown:string -> t
 val find_id_of_block : t -> Block.t -> block_id option
+val block_by_id : t -> block_id -> Hyperblock.t option
 val find_dependencies : t -> block_id -> Hyperblock.t list
 
 val to_list : t -> Commandgroup.t list
