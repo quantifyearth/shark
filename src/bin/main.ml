@@ -24,7 +24,7 @@ let store_or_default v =
       Obuilder.Store_spec.to_store config.store
 
 let run_eventloop ~clock main =
-  Lwt_eio.with_event_loop ~debug:true ~clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock @@ fun _ -> main ()
 
 let log tag msg =
   match tag with
