@@ -1,8 +1,9 @@
 let () =
   Alcotest.run "shark"
     [
-      ("basic", Basic.tests);
+      ("block", Block.tests);
       ("command parsing", Command.tests);
       ("datafile modeling", Datafile.tests);
       ("frontmatter parsing", Frontmatter.tests);
+      ("AST parsing", Ast.tests);
     ]

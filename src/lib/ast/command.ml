@@ -35,7 +35,7 @@ let parse_python_command args =
     | x :: _ -> Filename.basename x
     | _ -> "Python script"
   in
-  { name; args; file_args = find_file_args args }
+  { name; args = "python3" :: args; file_args = find_file_args args }
 
 let parse_rscript_command args =
   let r_options =
@@ -60,7 +60,7 @@ let parse_rscript_command args =
   let name =
     match reduced_args with x :: _ -> Filename.basename x | _ -> "R script"
   in
-  { name; args; file_args = find_file_args args }
+  { name; args = "Rscript" :: args; file_args = find_file_args args }
 
 let parse_generic_commmand args =
   let name =
@@ -72,8 +72,15 @@ let parse_generic_commmand args =
   { name; args; file_args = find_file_args args }
 
 let of_string command_str =
-  (* one day this will be all generic, but for now I'm hardcoding python just to make progress *)
-  match String.cuts ~sep:" " command_str with
+  (* TODO: use a CLI parsing library for this *)
+  let parts =
+    String.cuts ~sep:" " command_str
+    |> List.filter_map (fun x ->
+           match String.length x with 0 -> None | _ -> Some x)
+    |> List.map String.trim
+  in
+  let fparts = match parts with "$" :: x -> x | x -> x in
+  match fparts with
   | [] -> None
   | "python3" :: args -> Some (parse_python_command args)
   | "Rscript" :: args -> Some (parse_rscript_command args)
@@ -81,3 +88,4 @@ let of_string command_str =
 
 let name c = c.name
 let file_args c : Fpath.t list = c.file_args
+let to_string c = String.concat ~sep:" " c.args

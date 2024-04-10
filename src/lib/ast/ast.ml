@@ -1,8 +1,10 @@
 open Astring
+open Sexplib.Conv
 module DatafileSet = Set.Make (Datafile)
 
 module Hyperblock = struct
   type t = { context : string; block : Block.t; commands : Leaf.t list }
+  [@@deriving sexp]
 
   let v context block commands = { context; block; commands }
   let block h = h.block
@@ -22,6 +24,8 @@ module Hyperblock = struct
     in
     ( DatafileSet.to_list (DatafileSet.diff all_inputs all_outputs),
       DatafileSet.to_list (DatafileSet.diff all_outputs all_inputs) )
+
+  let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 end
 
 module Section = struct
@@ -32,14 +36,15 @@ module Section = struct
   let blocks s = s.blocks
 end
 
-type block_id = int
+type block_id = int [@@deriving sexp]
 
-type dag = {
+type t = {
   nodes : (block_id * Hyperblock.t) list;
   edges : (block_id * block_id) list;
 }
+[@@deriving sexp]
 
-type t = dag
+let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 
 (* ----- front matter parser ----- *)
 
@@ -75,27 +80,30 @@ let parse_markdown markdown =
     | Cmarkit.Block.Code_block (node, _meta) -> (
         let info_str =
           match Cmarkit.Block.Code_block.info_string node with
-          | None -> "shark-run:"
+          | None -> "shark-build:"
           | Some (info_str, _) -> info_str
         in
         let body = Cmarkit.Block.Code_block.code node in
         let body =
-          List.map Cmarkit.Block_line.to_string body
-          |> List.map String.trim |> String.concat ~sep:"\n"
+          List.map Cmarkit.Block_line.to_string body |> String.concat ~sep:"\n"
         in
         match Block.of_info_string ~default ~body info_str with
         | None -> Cmarkit.Folder.default
         | Some b -> (
-            match acc with
-            | [] ->
-                Cmarkit.Folder.ret [ { name = "Top level"; children = [ b ] } ]
-            | hd :: tl ->
-                Cmarkit.Folder.ret
-                  ({
-                     name = hd.name;
-                     children = List.rev (b :: List.rev hd.children);
-                   }
-                  :: tl)))
+            match Block.kind b with
+            | `Build -> Cmarkit.Folder.default
+            | _ -> (
+                match acc with
+                | [] ->
+                    Cmarkit.Folder.ret
+                      [ { name = "Top level"; children = [ b ] } ]
+                | hd :: tl ->
+                    Cmarkit.Folder.ret
+                      ({
+                         name = hd.name;
+                         children = List.rev (b :: List.rev hd.children);
+                       }
+                      :: tl))))
     | _ -> Cmarkit.Folder.default
   in
   let folder = Cmarkit.Folder.make ~block () in
@@ -110,10 +118,9 @@ let block_to_superblock (block : Block.t) : superblock =
   {
     block;
     commands =
-      Block.command_list block
-      |> List.filter_map Command.of_string
-      |> List.filter_map (fun c ->
-             match Command.file_args c with [] -> None | _ -> Some c);
+      Block.command_list block |> List.filter_map Command.of_string
+      (* |> List.filter_map (fun c ->
+             match Command.file_args c with [] -> None | _ -> Some c); *);
   }
 
 let build_initial_input_map inputs =
@@ -280,8 +287,8 @@ let of_sharkdown ~template_markdown =
 
   { nodes = id_all_hyperblocks; edges }
 
-let find_id_of_block ast b =
-  let d = Block.digest b in
+let find_id_of_block ast ib =
+  let d = Block.digest ib in
   let rec loop l =
     match l with
     | [] -> None
@@ -291,6 +298,8 @@ let find_id_of_block ast b =
         if Block.digest b = d then Some id else loop tl
   in
   loop ast.nodes
+
+let block_by_id ast id = List.assoc_opt id ast.nodes
 
 let find_dependencies ast id =
   List.filter_map

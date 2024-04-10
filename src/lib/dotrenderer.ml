@@ -8,7 +8,7 @@ let render_command_to_dot ppf command =
     (fun datafile ->
       let label =
         match Datafile.subpath datafile with
-        | Some x -> Printf.sprintf ",label=\"%s\"" x
+        | Some x -> Fmt.str ",label=\"%s\"" x
         | None -> ""
       in
       Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"%s];\n"

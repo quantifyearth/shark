@@ -190,7 +190,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
           let cb, result_block =
             Lwt_eio.run_lwt @@ fun () ->
             Shark.Md.process_run_block ~image_hash_map:!image_hash_map
-              ~data_image_list:input_hashes obuilder (code_block, block)
+              ~data_image_list:input_hashes obuilder
+              (code_block, Option.get (Shark.Ast.block_by_id ast blockid))
           in
           data_hash_map :=
             ( Shark.Block.digest result_block,

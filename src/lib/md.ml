@@ -63,15 +63,13 @@ let process_build_block (Builder ((module Builder), builder)) (code_block, block
   | _ -> failwith "expected build"
 
 let process_run_block ~image_hash_map ~data_image_list
-    (Builder ((module Builder), builder)) (_code_block, block) =
+    (Builder ((module Builder), builder)) (_code_block, hyperblock) =
+  let block = Ast.Hyperblock.block hyperblock in
   match Block.kind block with
   | `Run ->
-      let commands =
-        String.split_on_char '\n' (Block.body block)
-        |> List.filter (String.starts_with ~prefix:"$ ")
-      in
+      let commands = Ast.Hyperblock.commands hyperblock in
       let commands_stripped =
-        List.map (fun s -> String.sub s 1 (String.length s - 1)) commands
+        List.map Leaf.command commands |> List.map Command.to_string
       in
       let build = List.assoc (Block.alias block) image_hash_map in
       let rom =
@@ -130,7 +128,7 @@ let process_run_block ~image_hash_map ~data_image_list
         List.fold_left
           (fun s (command, (_, output)) -> s @ [ command; output ])
           []
-          (List.combine commands ids_and_output)
+          (List.combine commands_stripped ids_and_output)
         |> List.filter (fun v -> not (String.equal "" v))
         |> List.map Cmarkit.Block_line.list_of_string
         |> List.concat
