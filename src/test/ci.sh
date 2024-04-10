@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 export OPAMYES=true
-
+export OCAMLRUNPARAM=b
 
 # Borrowed from OBuilder's CI
 
