@@ -23,7 +23,7 @@ module Hyperblock = struct
         h.commands
     in
     ( DatafileSet.to_list (DatafileSet.diff all_inputs all_outputs),
-      DatafileSet.to_list (DatafileSet.diff all_outputs all_inputs) )
+      DatafileSet.to_list all_outputs )
 
   let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 end
@@ -263,24 +263,22 @@ let of_sharkdown ~template_markdown =
   let writers =
     List.concat
       (List.map
-         (fun x ->
-           let hbid, h = x in
+         (fun (hbid, h) ->
            let _, outputs = Hyperblock.io h in
-           List.map (fun o -> (o, hbid)) outputs)
+           List.map (fun o -> (Datafile.id o, (o, hbid))) outputs)
          id_all_hyperblocks)
   in
 
   let edges =
     List.concat
       (List.map
-         (fun x ->
-           let hbid, h = x in
+         (fun (hbid, h) ->
            let inputs, _ = Hyperblock.io h in
            List.filter_map
              (fun i ->
-               match List.assoc_opt i writers with
+               match List.assoc_opt (Datafile.id i) writers with
                | None -> None
-               | Some wid -> Some (wid, hbid))
+               | Some (_, writerid) -> Some (writerid, hbid))
              inputs)
          id_all_hyperblocks)
   in

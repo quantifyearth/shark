@@ -72,6 +72,7 @@ let process_run_block ~image_hash_map ~data_image_list
         List.map Leaf.command commands |> List.map Command.to_string
       in
       let build = List.assoc (Block.alias block) image_hash_map in
+
       let rom =
         List.map
           (fun input_info ->
@@ -80,6 +81,7 @@ let process_run_block ~image_hash_map ~data_image_list
             Obuilder_spec.Rom.of_build ~hash ~build_dir:"/data" mount)
           data_image_list
       in
+
       let links =
         List.concat_map
           (fun input_info ->
@@ -95,13 +97,16 @@ let process_run_block ~image_hash_map ~data_image_list
                 let open Obuilder_spec in
                 let target_dir, _ = split_base p in
                 [
-                  run "mkdir -p %s" (Fpath.to_string target_dir);
-                  run "ln -s %s %s || true" (Fpath.to_string src)
-                    (Fpath.to_string p);
+                  run "mkdir -p %s"
+                    (Fpath.to_string (Fpath.rem_empty_seg target_dir));
+                  run "ln -s %s %s || true"
+                    (Fpath.to_string (Fpath.rem_empty_seg src))
+                    (Fpath.to_string (Fpath.rem_empty_seg p));
                 ])
               paths)
           data_image_list
       in
+
       let spec build_hash pwd command =
         let open Obuilder_spec in
         stage ~from:(`Build build_hash)
