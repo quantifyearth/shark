@@ -102,26 +102,37 @@ let process_run_block ~image_hash_map ~data_image_list
               paths)
           data_image_list
       in
-      let spec build_hash command =
+      let spec build_hash pwd command =
         let open Obuilder_spec in
         stage ~from:(`Build build_hash)
-          ([ user_unix ~uid:0 ~gid:0; workdir "/root" ]
+          ([ user_unix ~uid:0 ~gid:0; workdir pwd ]
           @ links
           @ [ run ~network:[ "host" ] ~rom "%s" command ])
       in
-      let process (outputs, build_hash) command =
+      let process (outputs, build_hash, pwd) command =
         Logs.info (fun f ->
-            f "Running spec %a" Obuilder_spec.pp (spec build_hash command));
-        let buf = Buffer.create 128 in
-        let log = log `Run buf in
-        let context = Obuilder.Context.v ~log ~src_dir:"." () in
-        Builder.build builder context (spec build_hash command) >>= function
-        | Ok id -> Lwt.return ((id, Buffer.contents buf) :: outputs, id)
-        | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
-        | Error (`Msg m) -> Lwt.fail_with m
+            f "Running spec %a" Obuilder_spec.pp
+              (spec build_hash pwd (Command.to_string command)));
+        match Command.name command with
+        | "cd" ->
+            Lwt.return
+              ( (build_hash, "") :: outputs,
+                build_hash,
+                Fpath.to_string (List.nth (Command.file_args command) 0) )
+        | _ -> (
+            let buf = Buffer.create 128 in
+            let log = log `Run buf in
+            let context = Obuilder.Context.v ~log ~src_dir:"." () in
+            Builder.build builder context
+              (spec build_hash pwd (Command.to_string command))
+            >>= function
+            | Ok id -> Lwt.return ((id, Buffer.contents buf) :: outputs, id, pwd)
+            | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
+            | Error (`Msg m) -> Lwt.fail_with m)
       in
-      Lwt_list.fold_left_s process ([], build) commands_stripped
-      >>= fun (ids_and_output, _hash) ->
+      Lwt_list.fold_left_s process ([], build, "/root")
+        (List.map Leaf.command commands)
+      >>= fun (ids_and_output, _hash, _pwd) ->
       let ids_and_output = List.rev ids_and_output in
       let id = List.hd ids_and_output |> fst in
       let body =
