@@ -37,3 +37,9 @@ val process_publish_block :
   Obuilder.Store_spec.store ->
   Cmarkit.Block.Code_block.t * Block.t ->
   (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
+
+val validate_dependancy :
+  Obuilder.Store_spec.store ->
+  string -> 
+  Datafile.t list -> 
+  bool Lwt.t

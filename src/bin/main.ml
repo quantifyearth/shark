@@ -184,7 +184,14 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
                   List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map
                 in
                 let _, outputs = Shark.Ast.Hyperblock.io hb in
-                (hash, outputs))
+
+                let open Lwt.Infix in
+                let valid = Lwt_eio.run_lwt @@ fun () ->
+                  store >>= fun store ->
+                  Shark.Md.validate_dependancy store hash outputs
+                in match valid with
+                | false -> failwith "blah"
+                | true -> (hash, outputs))
               block_dependencies
           in
           let cb, result_block =

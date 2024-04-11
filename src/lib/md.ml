@@ -146,6 +146,7 @@ let process_run_block ~image_hash_map ~data_image_list
             | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
             | Error (`Msg m) -> Lwt.fail_with m)
       in
+
       Lwt_list.fold_left_s process ([], build, "/root") commands
       >>= fun (ids_and_output, _hash, _pwd) ->
       let ids_and_output = List.rev ids_and_output in
@@ -194,3 +195,21 @@ let process_publish_block ~input_hashes
       Lwt_list.iter_s process input_hashes >>= fun () ->
       Lwt.return (_code_block, block)
   | _ -> failwith "Expected Publish Block"
+
+let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash outputs = 
+  Store.result store hash >>= function
+  | None -> 
+    Lwt.fail_with (Fmt.str "No result found for %s whilst validating dependancies" hash)
+  | Some store_path -> (
+    let check_file_exists file acc =
+      match acc with 
+      | false -> Lwt.return false
+      | true -> (
+        let container_path = Datafile.path file |> Fpath.to_string in
+        let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
+        Printf.printf "%s\n" absolute_path;
+        Lwt_unix.file_exists absolute_path
+      )
+    in
+    Lwt_list.fold_right_s check_file_exists outputs true
+  )
