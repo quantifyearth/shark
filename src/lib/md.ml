@@ -1,9 +1,7 @@
 open Lwt.Infix
 
 let map_blocks (doc : Cmarkit.Doc.t) ~f =
-  let image_hash_map = ref [] in
-  let data_hash_map = ref [] in
-
+  let build_cache = Build_cache.v () in
   let block _mapper = function
     | Cmarkit.Block.Code_block (node, meta) -> (
         match Cmarkit.Block.Code_block.info_string node with
@@ -15,7 +13,7 @@ let map_blocks (doc : Cmarkit.Doc.t) ~f =
             in
             match Block.of_info_string ~body s with
             | Some block ->
-                let new_block = f ~image_hash_map ~data_hash_map node block in
+                let new_block = f ~build_cache node block in
                 `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
             | None -> `Default))
     | _ -> `Default
@@ -38,8 +36,8 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_build_block (Builder ((module Builder), builder)) (code_block, block)
-    =
+let process_build_block (Builder ((module Builder), builder)) ast
+    (code_block, block) =
   match Block.kind block with
   | `Build -> (
       let spec =
@@ -52,26 +50,43 @@ let process_build_block (Builder ((module Builder), builder)) (code_block, block
       | Error `Cancelled -> failwith "Cancelled by user"
       | Error (`Msg m) -> failwith m
       | Ok id ->
-          let block = Block.with_hash block id in
+          let block_with_hash = Block.with_hash block id in
+          (* Update hyperblock hash *)
+          let hb = Ast.find_hyperblock_from_block ast block |> Option.get in
+          Ast.Hyperblock.update_hash hb id;
           let new_code_block =
             let info_string = Block.to_info_string block in
             Cmarkit.Block.Code_block.make
               ~info_string:(info_string, Cmarkit.Meta.none)
               (Cmarkit.Block.Code_block.code code_block)
           in
-          Lwt.return (new_code_block, block))
+          Lwt.return (new_code_block, block_with_hash))
   | _ -> failwith "expected build"
 
-let process_run_block ~image_hash_map ~data_image_list
-    (Builder ((module Builder), builder)) (_code_block, hyperblock) =
-  let block = Ast.Hyperblock.block hyperblock in
+let input_hashes ast block =
+  let block_id = Option.get (Ast.find_id_of_block ast block) in
+  let block_dependencies = Ast.find_dependencies ast block_id in
+  let input_hashes =
+    List.map
+      (fun hb ->
+        let hash = Ast.Hyperblock.hash hb |> Option.get in
+        let _, outputs = Ast.Hyperblock.io hb in
+        (hash, outputs))
+      block_dependencies
+  in
+  (input_hashes, block_id)
+
+let process_run_block ~build_cache ast (Builder ((module Builder), builder))
+    (_code_block, block) =
+  let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
   match Block.kind block with
   | `Run ->
       let commands = Ast.Hyperblock.commands hyperblock in
       let commands_stripped =
         List.map Leaf.command commands |> List.map Command.to_string
       in
-      let build = List.assoc (Block.alias block) image_hash_map in
+      let inputs, _block_id = input_hashes ast block in
+      let build = Build_cache.find_exn build_cache (Block.alias block) in
 
       let rom =
         List.map
@@ -79,7 +94,7 @@ let process_run_block ~image_hash_map ~data_image_list
             let hash, _ = input_info in
             let mount = "/shark/" ^ hash in
             Obuilder_spec.Rom.of_build ~hash ~build_dir:"/data" mount)
-          data_image_list
+          inputs
       in
 
       let links =
@@ -104,7 +119,7 @@ let process_run_block ~image_hash_map ~data_image_list
                     (Fpath.to_string (Fpath.rem_empty_seg p));
                 ])
               paths)
-          data_image_list
+          inputs
       in
 
       let target_dirs l =
@@ -160,6 +175,7 @@ let process_run_block ~image_hash_map ~data_image_list
         |> List.concat
       in
       let block = Block.with_hash block id in
+      Ast.Hyperblock.update_hash hyperblock id;
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       Lwt.return (Cmarkit.Block.Code_block.make ~info_string body, block)
   | _ -> failwith "expected run"
@@ -172,10 +188,11 @@ let copy ?chown ~src ~dst () =
   Obuilder.Os.ensure_dir dst;
   Obuilder.Os.sudo cmd
 
-let process_publish_block ~input_hashes
-    (Obuilder.Store_spec.Store ((module Store), store)) (_code_block, block) =
+let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
+    ast (_code_block, block) =
   match Block.kind block with
   | `Publish ->
+      let inputs, _block_id = input_hashes ast block in
       let process (hash, files) =
         let copy_file file =
           Store.result store hash >>= function
@@ -191,6 +208,6 @@ let process_publish_block ~input_hashes
         in
         Lwt_list.iter_s copy_file files
       in
-      Lwt_list.iter_s process input_hashes >>= fun () ->
+      Lwt_list.iter_s process inputs >>= fun () ->
       Lwt.return (_code_block, block)
   | _ -> failwith "Expected Publish Block"
