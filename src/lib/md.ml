@@ -221,24 +221,29 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
       Lwt.return (_code_block, block)
   | _ -> failwith "Expected Publish Block"
 
-let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash outputs = 
+let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
   Store.result store hash >>= function
   | None -> 
     Lwt.fail_with (Fmt.str "No result found for %s whilst validating dependancies" hash)
   | Some store_path -> (
-    let check_file_exists file acc =
-      match acc with 
-      | false -> Lwt.return false
-      | true -> (
-        let container_path = Datafile.fullpath file |> Fpath.to_string in
-        let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
-        match Datafile.is_wildcard file with
-        | false -> Lwt_unix.file_exists absolute_path
-        | true -> (
-          Lwt_unix.files_of_directory absolute_path |> Lwt_stream.to_list >>= 
-          Lwt_list.fold_left_s (fun (_a : bool) (p : string) -> Printf.printf "\t%s\n" p; Lwt.return true ) false
+    let find_files_in_store file =
+      let container_path = Datafile.fullpath file |> Fpath.to_string in
+      let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
+      match Datafile.is_wildcard file with
+      | false -> Lwt_unix.file_exists absolute_path >>= (function
+        | false -> failwith "File not found"
+        | true -> [(Fpath.v absolute_path)]
         )
+      | true -> (
+        Lwt_unix.files_of_directory absolute_path |> Lwt_stream.to_list >>= (fun x ->
+        Lwt.return (List.filter_map (fun (path : string) ->
+          match path with
+          | "." | ".." -> None
+          | p -> Some (
+            Fpath.v p
+          )
+        ) x))
       )
     in
-    Lwt_list.fold_right_s check_file_exists outputs true
+    Lwt_list.map_s find_files_in_store outputs
   )
