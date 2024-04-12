@@ -61,27 +61,25 @@ let input_hashes ast block =
   let block_dependencies = Ast.find_dependencies ast block_id in
 
   (* The input Datafile has the wildcard flag, which won't be set on the
-    output flag, so we need to swap them over *)
+     output flag, so we need to swap them over *)
   let input_map =
     Ast.Hyperblock.io (Option.get (Ast.block_by_id ast block_id))
     |> fst
-    |> List.map (fun df -> ((Datafile.id df), df) )
+    |> List.map (fun df -> (Datafile.id df, df))
   in
 
   let input_hashes =
     let map_to_inputs hb =
       let hash = Ast.Hyperblock.hash hb |> Option.get in
       let inputs =
-        Ast.Hyperblock.io hb
-        |> snd
-        |> List.map Datafile.id
+        Ast.Hyperblock.io hb |> snd |> List.map Datafile.id
         |> List.map (fun o -> List.assoc o input_map)
       in
       (hash, inputs)
     in
     List.map map_to_inputs block_dependencies
-
   in
+
   (input_hashes, block_id)
 
 let process_run_block ~build_cache ast (Builder ((module Builder), builder))
@@ -221,29 +219,29 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
       Lwt.return (_code_block, block)
   | _ -> failwith "Expected Publish Block"
 
-let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
-  Store.result store hash >>= function
-  | None -> 
-    Lwt.fail_with (Fmt.str "No result found for %s whilst validating dependancies" hash)
-  | Some store_path -> (
-    let find_files_in_store file =
-      let container_path = Datafile.fullpath file |> Fpath.to_string in
-      let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
-      match Datafile.is_wildcard file with
-      | false -> Lwt_unix.file_exists absolute_path >>= (function
-        | false -> failwith "File not found"
-        | true -> [(Fpath.v absolute_path)]
-        )
-      | true -> (
-        Lwt_unix.files_of_directory absolute_path |> Lwt_stream.to_list >>= (fun x ->
-        Lwt.return (List.filter_map (fun (path : string) ->
-          match path with
-          | "." | ".." -> None
-          | p -> Some (
-            Fpath.v p
-          )
-        ) x))
-      )
-    in
-    Lwt_list.map_s find_files_in_store outputs
-  )
+(* let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
+   Store.result store hash >>= function
+   | None ->
+     Lwt.fail_with (Fmt.str "No result found for %s whilst validating dependancies" hash)
+   | Some store_path -> (
+     let find_files_in_store file =
+       let container_path = Datafile.fullpath file |> Fpath.to_string in
+       let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
+       match Datafile.is_wildcard file with
+       | false -> Lwt_unix.file_exists absolute_path >>= (function
+         | false -> failwith "File not found"
+         | true -> [(Fpath.v absolute_path)]
+         )
+       | true -> (
+         Lwt_unix.files_of_directory absolute_path |> Lwt_stream.to_list >>= (fun x ->
+         Lwt.return (List.filter_map (fun (path : string) ->
+           match path with
+           | "." | ".." -> None
+           | p -> Some (
+             Fpath.v p
+           )
+         ) x))
+       )
+     in
+     Lwt_list.map_s find_files_in_store outputs
+   ) *)
