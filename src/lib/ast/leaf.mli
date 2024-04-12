@@ -15,3 +15,5 @@ val command : t -> Command.t
 val command_style : t -> style
 val inputs : t -> Datafile.t list
 val outputs : t -> Datafile.t list
+
+val to_string_for_inputs : t -> (string * string list) list -> string list
