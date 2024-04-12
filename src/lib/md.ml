@@ -59,13 +59,28 @@ let process_build_block (Builder ((module Builder), builder)) ast
 let input_hashes ast block =
   let block_id = Option.get (Ast.find_id_of_block ast block) in
   let block_dependencies = Ast.find_dependencies ast block_id in
+
+  (* The input Datafile has the wildcard flag, which won't be set on the
+    output flag, so we need to swap them over *)
+  let input_map =
+    Ast.Hyperblock.io (Option.get (Ast.block_by_id ast block_id))
+    |> fst
+    |> List.map (fun df -> ((Datafile.id df), df) )
+  in
+
   let input_hashes =
-    List.map
-      (fun hb ->
-        let hash = Ast.Hyperblock.hash hb |> Option.get in
-        let _, outputs = Ast.Hyperblock.io hb in
-        (hash, outputs))
-      block_dependencies
+    let map_to_inputs hb =
+      let hash = Ast.Hyperblock.hash hb |> Option.get in
+      let inputs =
+        Ast.Hyperblock.io hb
+        |> snd
+        |> List.map Datafile.id
+        |> List.map (fun o -> List.assoc o input_map)
+      in
+      (hash, inputs)
+    in
+    List.map map_to_inputs block_dependencies
+
   in
   (input_hashes, block_id)
 
