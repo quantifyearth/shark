@@ -70,8 +70,6 @@ let parse_frontmatter frontmatter =
    initial benefit. *)
 type section_group = { name : string; children : Block.t list }
 
-let default ~info ~body = Some (Block.build_or_run ~alias:info ~body `Run)
-
 let parse_markdown markdown =
   let doc = Cmarkit.Doc.of_string markdown in
 
@@ -85,7 +83,7 @@ let parse_markdown markdown =
         in
         Cmarkit.Folder.ret ({ name = title; children = [] } :: acc)
     | Cmarkit.Block.Code_block (node, _meta) -> (
-        match Block.of_code_block ~default node with
+        match Block.of_code_block node with
         | None -> Cmarkit.Folder.default
         | Some b -> (
             match Block.kind b with

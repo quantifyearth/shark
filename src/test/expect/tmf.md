@@ -24,7 +24,7 @@ First we need to download the layers used by all projects, and in some cases con
 
 JRC data is generally downloaded first, as all other tiles are at JRC resolution, and so often things that don't need JRC data will still read one JRC tile just to get the correct GeoTIFF projection and pixel scale. To fetch JRC data we do:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.download_jrc_data /data/tmf/jrc/zips /data/tmf/jrc/tif
 ```
 
@@ -32,7 +32,7 @@ The zips are kept around for archival purposes, due to known difficultly in vers
 
 We also want to generate the Finegrain Circular CPC (FCC) maps. This stage is very expensive, taking days to run, but only needs to be done once per year when JRC updates.
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_fine_circular_coverage --jrc /data/tmf/jrc/tif --output /data/tmf/fcc-cpcs
 ```
 
@@ -41,13 +41,13 @@ python3 -m methods.inputs.generate_fine_circular_coverage --jrc /data/tmf/jrc/ti
 
 First we download the ecoregions as a shape file:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.download_shapefiles ecoregion /data/tmf/ecoregions/ecoregions.geojson
 ```
 
 Then we convert it into raster files. This takes up more space, but the ecoregions are slow to raster on demand each time, so this is faster doing it just once.
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_ecoregion_rasters /data/tmf/ecoregions/ecoregions.geojson /data/tmf/jrc/tif /data/tmf/ecoregions
 ```
 
@@ -55,13 +55,13 @@ python3 -m methods.inputs.generate_ecoregion_rasters /data/tmf/ecoregions/ecoreg
 
 Firstly we have access to healthcare data:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.download_accessibility /data/tmf/access/raw.tif
 ```
 
 Which must then be turned into smaller tiles:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_access_tiles /data/tmf/access/raw.tif /data/tmf/jrc/tif /data/tmf/access
 ```
 
@@ -69,7 +69,7 @@ python3 -m methods.inputs.generate_access_tiles /data/tmf/access/raw.tif /data/t
 
 We use OSM data for country board data:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.osm_countries /data/tmf/osm_borders.geojson
 ```
 
@@ -88,13 +88,13 @@ For this section you will now need to have the following:
 
 We add a 30km buffer around the project for generating land usage and AGB data:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_boundary --project /data/tmf/project_boundaries/123.geojson --output /data/tmf/123/buffer.geojson
 ```
 
 We also want a shape for the leakage zone:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_leakage --project /data/tmf/project_boundaries/123.geojson --output /data/tmf/123/leakage.geojson
 ```
 
@@ -102,7 +102,7 @@ python3 -m methods.inputs.generate_leakage --project /data/tmf/project_boundarie
 
 We conver the JRC tiles binary tiles per LUC. In theory we could do this for all JRC tiles, but to save space we just calculate the areas we need.
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_luc_layer --buffer /data/tmf/123/buffer.geojson \
                                             --jrc /data/tmf/jrc/tif \
                                             --output /data/tmf/123/luc.tif
@@ -133,19 +133,19 @@ DB_PASSWORD="XXXXXXXX"
 
 Once you have this the download script is:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.download_gedi_data /data/tmf/123/buffer.geojson /data/tmf/gedi
 ```
 
 Then the following script does the actual ingest into POSTGIS:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.import_gedi_data /data/tmf/gedi
 ```
 
 Once the data has been downloaded and ingested into POSTGIS, you then need to generate AGB data layers:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_carbon_density --buffer /data/tmf/123/buffer.geojson \
                                                 --luc /data/tmf/123/luc.tif \
                                                 --output /data/tmf/123/carbon-density.csv
@@ -157,7 +157,7 @@ This is the only part of the pipeline that needs the PostGIS server access.
 
 We need a list of countries that a project intersects with to calculate the matching area:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_country_list --leakage /data/tmf/project_boundaries/123.geojson \
                                                --countries /data/tmf/osm_borders.geojson \
                                                --output /data/tmf/123/country-list.json
@@ -166,7 +166,7 @@ python3 -m methods.inputs.generate_country_list --leakage /data/tmf/project_boun
 Note that this stage requires a full list of other project boundaries that must be avoided for matching purposes, which is in `/data/tmf/project_boundaries`
 
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_matching_area --project /data/tmf/project_boundaries/123.geojson \
                                                   --countrycodes /data/tmf/123/country-list.json \
                                                   --countries /data/tmf/osm_borders.geojson \
@@ -179,7 +179,7 @@ python3 -m methods.inputs.generate_matching_area --project /data/tmf/project_bou
 
 We use the SRTM elevation data, which we download to cover the matching area:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.download_srtm_data --project /data/tmf/project_boundaries/123.geojson \
                                             --matching /data/tmf/123/matching-area.geojson \
                                             --zips /data/tmf/srtm/zip \
@@ -188,13 +188,13 @@ python3 -m methods.inputs.download_srtm_data --project /data/tmf/project_boundar
 
 Then from that generate slope data using GDAL:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_slope --input /data/tmf/srtm/tif --output /data/tmf/slopes
 ```
 
 Once we have that we need to rescale the data to match JRC resolution:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.rescale_tiles_to_jrc --jrc /data/tmf/jrc/tif \
                                                  --tiles /data/tmf/srtm/tif \
                                                  --output /data/tmf/rescaled-elevation
@@ -207,7 +207,7 @@ python3 -m methods.inputs.rescale_tiles_to_jrc --jrc /data/tmf/jrc/tif \
 
 Again, rather than repeatedly dynamically rasterize the country vectors, we rasterise them once and re-use them:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.inputs.generate_country_raster --jrc /data/tmf/jrc/tif \
                                                   --matching /data/tmf/123/matching-area.geojson \
                                                   --countries /data/tmf/osm_borders.geojson \
@@ -222,7 +222,7 @@ Pixel matching is split into three main stages: Calculating K, then M, and then 
 
 First we make K.
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.matching.calculate_k --project /data/tmf/project_boundaries/123.geojson \
                                           --start_year 2012 \
                                           --evaluation_year 2021 \
@@ -240,7 +240,7 @@ python3 -m methods.matching.calculate_k --project /data/tmf/project_boundaries/1
 
 Calculating the set M is a three step process. First we generate a raster per K that has the matches for that particular pixel:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.matching.find_potential_matches --k /data/tmf/123/k.parquet \
                                                      --matching /data/tmf/123/matching-area.geojson \
                                                      --start_year 2012 \
@@ -257,7 +257,7 @@ python3 -m methods.matching.find_potential_matches --k /data/tmf/123/k.parquet \
 
 Then these rasters get combined into a single raster that is all the potential matches as one. The j parameter controls how many concurrent processes the script can use, which is bounded mostly by how much memory you have available. The value 20 is good for our server, but may not match yours.
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.matching.build_m_raster --rasters_directory /data/tmf/123/matches \
                                           --output /data/tmf/123/matches.tif \
                                           -j 20
@@ -265,7 +265,7 @@ python3 -m methods.matching.build_m_raster --rasters_directory /data/tmf/123/mat
 
 We then convert that raster into a table of pixels plus the data we need:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.matching.build_m_table --raster /data/tmf/123/matches.tif \
                                             --matching /data/tmf/123/matching-area.geojson \
                                             --start_year 2012 \
@@ -284,7 +284,7 @@ python3 -m methods.matching.build_m_table --raster /data/tmf/123/matches.tif \
 
 Finally we can find the 100 sets of matched pairs. The seed is used to control the random number generator, and using the same seed on each run ensures consistency despite randomness being part of the selection process.
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.matching.find_pairs --k /data/tmf/123/k.parquet \
                                          --m /data/tmf/123/matches.parquet \
                                          --start_year 2012 \
@@ -297,7 +297,7 @@ python3 -m methods.matching.find_pairs --k /data/tmf/123/k.parquet \
 
 Finally this script calculates additionality:
 
-```ShellSession
+```shark-run:tmf-env
 python3 -m methods.outputs.calculate_additionality --project /data/tmf/project_boundaries/123.geojson \
                                                     --project_start 2012 \
                                                     --evaluation_year 2021 \
