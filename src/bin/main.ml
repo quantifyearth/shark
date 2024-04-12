@@ -140,63 +140,34 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
   let template_markdown = Eio.Path.load file_path in
   let ast = Shark.Ast.of_sharkdown ~template_markdown in
 
-  let f ~image_hash_map ~data_hash_map code_block block =
+  let f ~build_cache code_block block =
     if no_run then code_block
     else
       match Shark.Block.kind block with
       | `Publish ->
-          let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
-          let block_dependencies = Shark.Ast.find_dependencies ast blockid in
-          let input_hashes =
-            List.map
-              (fun hb ->
-                let hash =
-                  List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map
-                in
-                let _, outputs = Shark.Ast.Hyperblock.io hb in
-                (hash, outputs))
-              block_dependencies
-          in
           let cb, _blk =
             let open Lwt.Infix in
             Lwt_eio.run_lwt @@ fun () ->
             store >>= fun store ->
-            Shark.Md.process_publish_block ~input_hashes store
-              (code_block, block)
+            Shark.Md.process_publish_block store ast (code_block, block)
           in
           cb
       | `Build ->
-          let cb, blk =
-            Lwt_eio.run_lwt @@ fun () ->
-            Shark.Md.process_build_block obuilder (code_block, block)
+          let _alias, _id, cb =
+            Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
+            let cb, blk =
+              Lwt_eio.run_lwt @@ fun () ->
+              Shark.Md.process_build_block obuilder ast (code_block, block)
+            in
+            (Shark.Block.alias blk, Option.get (Shark.Block.hash blk), cb)
           in
-          image_hash_map :=
-            (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
-            :: !image_hash_map;
           cb
       | `Run ->
-          let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
-          let block_dependencies = Shark.Ast.find_dependencies ast blockid in
-          let input_hashes =
-            List.map
-              (fun hb ->
-                let hash =
-                  List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map
-                in
-                let _, outputs = Shark.Ast.Hyperblock.io hb in
-                (hash, outputs))
-              block_dependencies
-          in
-          let cb, result_block =
+          let cb, _result_block =
             Lwt_eio.run_lwt @@ fun () ->
-            Shark.Md.process_run_block ~image_hash_map:!image_hash_map
-              ~data_image_list:input_hashes obuilder
-              (code_block, Option.get (Shark.Ast.block_by_id ast blockid))
+            Shark.Md.process_run_block ~build_cache ast obuilder
+              (code_block, block)
           in
-          data_hash_map :=
-            ( Shark.Block.digest result_block,
-              Option.get (Shark.Block.hash result_block) )
-            :: !data_hash_map;
           cb
   in
 
