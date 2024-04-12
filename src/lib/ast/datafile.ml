@@ -29,3 +29,8 @@ let subpath d = d.subpath
 let is_wildcard d = d.wildcard
 let compare a b = Int.compare a.id b.id
 let is_dir d = Fpath.is_dir_path d.path
+
+let fullpath d =
+  match d.subpath with
+  | None -> d.path
+  | Some s -> Fpath.add_seg d.path s

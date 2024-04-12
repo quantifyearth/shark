@@ -11,6 +11,7 @@ val pp : t Fmt.t
 val id : t -> int
 val path : t -> Fpath.t
 val subpath : t -> string option
+val fullpath : t -> Fpath.t
 val is_wildcard : t -> bool
 val is_dir : t -> bool
 val compare : t -> t -> int
