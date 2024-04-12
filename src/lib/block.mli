@@ -38,6 +38,12 @@ val of_info_string :
     to override the value that is returned if the [info_string] is not a
     Shark block. *)
 
+val of_code_block :
+  ?default:(info:string -> body:string -> t option) ->
+  Cmarkit.Block.Code_block.t ->
+  t option
+(** Like {! of_info_string} but pulls out the data from code block for you *)
+
 val to_info_string : t -> string
 (** Convert the block back to the info string *)
 

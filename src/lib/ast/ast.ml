@@ -85,16 +85,7 @@ let parse_markdown markdown =
         in
         Cmarkit.Folder.ret ({ name = title; children = [] } :: acc)
     | Cmarkit.Block.Code_block (node, _meta) -> (
-        let info_str =
-          match Cmarkit.Block.Code_block.info_string node with
-          | None -> "shark-build:"
-          | Some (info_str, _) -> info_str
-        in
-        let body = Cmarkit.Block.Code_block.code node in
-        let body =
-          List.map Cmarkit.Block_line.to_string body |> String.concat ~sep:"\n"
-        in
-        match Block.of_info_string ~default ~body info_str with
+        match Block.of_code_block ~default node with
         | None -> Cmarkit.Folder.default
         | Some b -> (
             match Block.kind b with

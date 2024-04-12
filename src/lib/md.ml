@@ -4,18 +4,11 @@ let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let build_cache = Build_cache.v () in
   let block _mapper = function
     | Cmarkit.Block.Code_block (node, meta) -> (
-        match Cmarkit.Block.Code_block.info_string node with
-        | None -> `Default
-        | Some (s, _) -> (
-            let body = Cmarkit.Block.Code_block.code node in
-            let body =
-              List.map Cmarkit.Block_line.to_string body |> String.concat "\n"
-            in
-            match Block.of_info_string ~body s with
-            | Some block ->
-                let new_block = f ~build_cache node block in
-                `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
-            | None -> `Default))
+        match Block.of_code_block node with
+        | Some block ->
+            let new_block = f ~build_cache node block in
+            `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
+        | None -> `Default)
     | _ -> `Default
   in
   let mapper = Cmarkit.Mapper.make ~block () in

@@ -47,6 +47,15 @@ let of_info_string ?(default = fun ~info:_ ~body:_ -> None) ~body s =
       Some (publish ?output body)
   | _ -> default ~info:s ~body
 
+let of_code_block ?default cb =
+  let body = Cmarkit.Block.Code_block.code cb in
+  let body =
+    List.map Cmarkit.Block_line.to_string body |> String.concat ~sep:"\n"
+  in
+  match Cmarkit.Block.Code_block.info_string cb with
+  | None -> None
+  | Some (info, _) -> of_info_string ?default ~body info
+
 let to_info_string = function
   | `Build { hash; alias; _ } -> (
       Fmt.str "shark-build:%s" alias
