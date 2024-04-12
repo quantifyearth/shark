@@ -215,10 +215,14 @@ let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash
       match acc with 
       | false -> Lwt.return false
       | true -> (
-        let container_path = Datafile.path file |> Fpath.to_string in
+        let container_path = Datafile.fullpath file |> Fpath.to_string in
         let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
-        Printf.printf "%s\n" absolute_path;
-        Lwt_unix.file_exists absolute_path
+        match Datafile.is_wildcard file with
+        | false -> Lwt_unix.file_exists absolute_path
+        | true -> (
+          Lwt_unix.files_of_directory absolute_path |> Lwt_stream.to_list >>= 
+          Lwt_list.fold_left_s (fun (_a : bool) (p : string) -> Printf.printf "\t%s\n" p; Lwt.return true ) false
+        )
       )
     in
     Lwt_list.fold_right_s check_file_exists outputs true
