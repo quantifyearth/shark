@@ -177,23 +177,29 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
       | `Run ->
           let blockid = Option.get (Shark.Ast.find_id_of_block ast block) in
           let block_dependencies = Shark.Ast.find_dependencies ast blockid in
-          let input_hashes =
-            List.map
-              (fun hb ->
-                let hash =
-                  List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map
-                in
-                let _, outputs = Shark.Ast.Hyperblock.io hb in
 
-                let open Lwt.Infix in
-                let valid = Lwt_eio.run_lwt @@ fun () ->
-                  store >>= fun store ->
-                  Shark.Md.validate_dependancy store hash outputs
-                in match valid with
-                | false -> failwith "blah"
-                | true -> (hash, outputs))
-              block_dependencies
+          (* The input Datafile has the wildcard flag, which won't be set on the 
+             output flag, so we need to swap them over *)
+          let input_map =
+            Shark.Ast.Hyperblock.io (Option.get (Shark.Ast.block_by_id ast blockid))
+            |> fst
+            |> List.map (fun df -> ((Shark.Datafile.id df), df) )
           in
+
+          let input_hashes =
+            let map_to_inputs hb =
+              let hash = List.assoc (Shark.Ast.Hyperblock.digest hb) !data_hash_map in
+              let inputs =
+                Shark.Ast.Hyperblock.io hb
+                |> snd
+                |> List.map Shark.Datafile.id
+                |> List.map (fun o -> List.assoc o input_map)
+              in
+              (hash, inputs)
+            in
+            List.map map_to_inputs block_dependencies
+          in
+
           let cb, result_block =
             Lwt_eio.run_lwt @@ fun () ->
             Shark.Md.process_run_block ~image_hash_map:!image_hash_map
