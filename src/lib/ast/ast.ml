@@ -4,20 +4,21 @@ module DatafileSet = Set.Make (Datafile)
 
 module Hyperblock = struct
   type t = {
-    hash : string option ref;
+    hash : string list ref;
     context : string;
     block : Block.t;
     commands : Leaf.t list;
   }
   [@@deriving sexp]
 
-  let v context block commands = { hash = ref None; context; block; commands }
+  let v context block commands = { hash = ref []; context; block; commands }
   let block h = h.block
   let commands h = h.commands
   let context h = h.context
   let digest h = Block.digest h.block
-  let hash h = !(h.hash)
-  let update_hash h hash = h.hash := Some hash
+  let hash h = match !(h.hash) with [] -> None | hd :: _ -> Some hd
+  let hashes h = !(h.hash)
+  let update_hash h hash = h.hash := hash :: !(h.hash)
 
   let io h =
     let all_inputs, all_outputs =

@@ -9,6 +9,7 @@ module Hyperblock : sig
 
   val block : t -> Block.t
   val hash : t -> string option
+  val hashes : t -> string list
   val update_hash : t -> string -> unit
   val commands : t -> Leaf.t list
   val context : t -> string
