@@ -1,5 +1,14 @@
 open Lwt.Infix
 
+module CommandResult = struct
+  type t = { build_hash : string; output : string; command : string }
+
+  let v ~build_hash ~output ~command = { build_hash; output; command }
+  let _build_hash r = r.build_hash
+  let output r = r.output
+  let command r = r.command
+end
+
 let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let build_cache = Build_cache.v () in
   let block _mapper = function
@@ -164,7 +173,7 @@ let process_run_block ~build_cache store ast
           @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
       let process (_outputs, build_hash, pwd) leaf cmdstr :
-          ((string * string * string) * string * string) Lwt.t =
+          (CommandResult.t * string * string) Lwt.t =
         Logs.info (fun f ->
             f "Running spec %a" Obuilder_spec.pp
               (spec build_hash pwd leaf cmdstr));
@@ -172,7 +181,7 @@ let process_run_block ~build_cache store ast
         match Command.name command with
         | "cd" ->
             Lwt.return
-              ( (build_hash, "", cmdstr),
+              ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
                 build_hash,
                 Fpath.to_string (List.nth (Command.file_args command) 0) )
         | _ -> (
@@ -181,7 +190,12 @@ let process_run_block ~build_cache store ast
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
             Builder.build builder context (spec build_hash pwd leaf cmdstr)
             >>= function
-            | Ok id -> Lwt.return ((id, Buffer.contents buf, cmdstr), id, pwd)
+            | Ok id ->
+                Lwt.return
+                  ( CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
+                      ~command:cmdstr,
+                    id,
+                    pwd )
             | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
             | Error (`Msg m) ->
                 Printf.printf "output: %s\n" (Buffer.contents buf);
@@ -191,7 +205,12 @@ let process_run_block ~build_cache store ast
       let outer_process acc leaf =
         let inputs = Leaf.inputs leaf in
         let input_and_hashes =
-          List.map (fun i -> (i, List.assoc (Datafile.id i) input_map)) inputs
+          List.filter_map
+            (fun i ->
+              match List.assoc_opt (Datafile.id i) input_map with
+              | None -> None
+              | Some x -> Some (i, x))
+            inputs
         in
         let hash_to_input_map =
           List.fold_left
@@ -225,13 +244,6 @@ let process_run_block ~build_cache store ast
         let results, _hash, _pwd = acc in
         let _, hash, pwd = List.hd l in
         Lwt.return (l :: results, hash, pwd)
-        (*
-        >>= Lwt_list.fold_left_s
-              (fun a v ->
-                let outputs, _build_hash, _pwd, commands = a
-                and no, nh, np, command = v in
-                Lwt.return (no :: outputs, nh, np, command :: commands))
-              (acc_outputs, "", "", acc_commands) *)
       in
 
       Lwt_list.fold_left_s outer_process ([], build, "/root") commands
@@ -242,7 +254,8 @@ let process_run_block ~build_cache store ast
 
       let body =
         List.fold_left
-          (fun s (_, output, command) -> s @ [ command; output ])
+          (fun s (r, _, _) ->
+            s @ [ CommandResult.command r; CommandResult.output r ])
           []
           (List.concat ids_and_output_and_cmd)
         |> List.filter (fun v -> not (String.equal "" v))
