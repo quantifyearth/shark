@@ -164,8 +164,10 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
           cb
       | `Run ->
           let cb, _result_block =
+            let open Lwt.Infix in
             Lwt_eio.run_lwt @@ fun () ->
-            Shark.Md.process_run_block ~build_cache ast obuilder
+            store >>= fun store ->
+            Shark.Md.process_run_block ~build_cache store ast obuilder
               (code_block, block)
           in
           cb

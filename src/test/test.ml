@@ -6,4 +6,5 @@ let () =
       ("datafile modeling", Datafile.tests);
       ("frontmatter parsing", Frontmatter.tests);
       ("AST parsing", Ast.tests);
+      ("AST leaf processing", Leaf.tests);
     ]

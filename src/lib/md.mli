@@ -27,6 +27,7 @@ val process_build_block :
 
 val process_run_block :
   build_cache:Build_cache.t ->
+  Obuilder.Store_spec.store ->
   Ast.t ->
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
