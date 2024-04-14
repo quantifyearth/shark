@@ -68,115 +68,179 @@ let input_hashes ast block =
     |> List.map (fun df -> (Datafile.id df, df))
   in
 
-  let input_hashes =
-    let map_to_inputs hb =
-      let hash = Ast.Hyperblock.hash hb |> Option.get in
-      let inputs =
-        Ast.Hyperblock.io hb |> snd |> List.map Datafile.id
-        |> List.map (fun o -> List.assoc o input_map)
-      in
-      (hash, inputs)
+  let map_to_inputs hb =
+    let hash = Ast.Hyperblock.hash hb |> Option.get in
+    let inputs =
+      Ast.Hyperblock.io hb |> snd |> List.map Datafile.id
+      |> List.filter_map (fun o -> List.assoc_opt o input_map)
     in
-    List.map map_to_inputs block_dependencies
+    (hash, inputs)
   in
+  List.map map_to_inputs block_dependencies
 
-  (input_hashes, block_id)
+let get_paths (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
+  let shark_mount_path = Fpath.add_seg (Fpath.v "/shark") hash in
+  Store.result store hash >>= function
+  | None ->
+      Lwt.fail_with
+        (Fmt.str "No result found for %s whilst validating dependancies" hash)
+  | Some store_path ->
+      let rootfs = Fpath.add_seg (Fpath.v store_path) "rootfs" in
+      let find_files_in_store file =
+        let container_path = Datafile.fullpath file in
+        let root = Fpath.v "/" in
+        let absolute_path =
+          Fpath.relativize ~root container_path
+          |> Option.get |> Fpath.append rootfs
+        in
+        let shark_destination_path =
+          let root = Fpath.v "/data/" in
+          Fpath.relativize ~root container_path
+          |> Option.get
+          |> Fpath.append shark_mount_path
+        in
+        match Datafile.is_wildcard file with
+        | false -> (
+            Lwt_unix.file_exists (Fpath.to_string absolute_path) >>= function
+            | false -> Lwt.return (file, [])
+            | true -> Lwt.return (file, [ shark_destination_path ]))
+        | true ->
+            Lwt_unix.files_of_directory (Fpath.to_string absolute_path)
+            |> Lwt_stream.to_list
+            >>= fun x ->
+            Lwt.return
+              ( file,
+                List.filter_map
+                  (fun (path : string) ->
+                    match path with
+                    | "." | ".." -> None
+                    | p -> Some (Fpath.add_seg shark_destination_path p))
+                  x )
+      in
+      Lwt_list.map_s find_files_in_store outputs
 
-let process_run_block ~build_cache ast (Builder ((module Builder), builder))
-    (_code_block, block) =
+let process_run_block ~build_cache store ast
+    (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
   match Block.kind block with
   | `Run ->
       let commands = Ast.Hyperblock.commands hyperblock in
-      let commands_stripped =
-        List.map Leaf.command commands |> List.map Command.to_string
-      in
-      let inputs, _block_id = input_hashes ast block in
+      let inputs = input_hashes ast block in
       let build = Build_cache.find_exn build_cache (Block.alias block) in
 
       let rom =
         List.map
-          (fun input_info ->
-            let hash, _ = input_info in
+          (fun (hash, _) ->
             let mount = "/shark/" ^ hash in
             Obuilder_spec.Rom.of_build ~hash ~build_dir:"/data" mount)
           inputs
       in
 
-      let links =
-        List.concat_map
-          (fun input_info ->
-            let hash, paths = input_info in
-            let open Fpath in
-            let base = Fpath.v "/shark" / hash in
-            List.concat_map
-              (fun (p : Datafile.t) ->
-                let p = Datafile.path p in
-                let src =
-                  base // Option.get (relativize ~root:(Fpath.v "/data/") p)
-                in
-                let open Obuilder_spec in
-                let target_dir, _ = split_base p in
-                [
-                  run "mkdir -p %s"
-                    (Fpath.to_string (Fpath.rem_empty_seg target_dir));
-                  run "ln -s %s %s || true"
-                    (Fpath.to_string (Fpath.rem_empty_seg src))
-                    (Fpath.to_string (Fpath.rem_empty_seg p));
-                ])
-              paths)
+      let input_map =
+        List.map
+          (fun (hash, dfs) -> List.map (fun df -> (Datafile.id df, hash)) dfs)
           inputs
+        |> List.concat
       in
 
       let target_dirs l =
         List.map
           (fun d ->
-            let p = Datafile.path d in
+            let p = Datafile.fullpath d in
             let open Obuilder_spec in
-            run "mkdir -p %s" (Fpath.to_string (Fpath.parent p)))
+            let target =
+              match Datafile.is_dir d with false -> Fpath.parent p | true -> p
+            in
+            run "mkdir -p %s" (Fpath.to_string target))
           (Leaf.outputs l)
       in
 
-      let spec build_hash pwd leaf =
+      let spec build_hash pwd leaf cmdstr =
         let open Obuilder_spec in
         stage ~from:(`Build build_hash)
           ([ user_unix ~uid:0 ~gid:0; workdir pwd ]
-          @ target_dirs leaf @ links
-          @ [
-              run ~network:[ "host" ] ~rom "%s"
-                (Command.to_string (Leaf.command leaf));
-            ])
+          @ target_dirs leaf
+          (* @ links *)
+          @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
-      let process (outputs, build_hash, pwd) leaf =
+      let process (_outputs, build_hash, pwd, _last_cmd) leaf cmdstr :
+          ((string * string) * string * string * string) Lwt.t =
         Logs.info (fun f ->
-            f "Running spec %a" Obuilder_spec.pp (spec build_hash pwd leaf));
+            f "Running spec %a" Obuilder_spec.pp
+              (spec build_hash pwd leaf cmdstr));
         let command = Leaf.command leaf in
         match Command.name command with
         | "cd" ->
             Lwt.return
-              ( (build_hash, "") :: outputs,
+              ( (build_hash, ""),
                 build_hash,
-                Fpath.to_string (List.nth (Command.file_args command) 0) )
+                Fpath.to_string (List.nth (Command.file_args command) 0),
+                cmdstr )
         | _ -> (
             let buf = Buffer.create 128 in
             let log = log `Run buf in
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
-            Builder.build builder context (spec build_hash pwd leaf)
+            Builder.build builder context (spec build_hash pwd leaf cmdstr)
             >>= function
-            | Ok id -> Lwt.return ((id, Buffer.contents buf) :: outputs, id, pwd)
+            | Ok id -> Lwt.return ((id, Buffer.contents buf), id, pwd, cmdstr)
             | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
-            | Error (`Msg m) -> Lwt.fail_with m)
+            | Error (`Msg m) ->
+                Printf.printf "output: %s\n" (Buffer.contents buf);
+                Lwt.fail_with m)
       in
 
-      Lwt_list.fold_left_s process ([], build, "/root") commands
-      >>= fun (ids_and_output, _hash, _pwd) ->
+      let outer_process acc leaf =
+        let inputs = Leaf.inputs leaf in
+        let input_and_hashes =
+          List.map (fun i -> (i, List.assoc (Datafile.id i) input_map)) inputs
+        in
+        let hash_to_input_map =
+          List.fold_left
+            (fun a (df, hash) ->
+              match List.assoc_opt hash a with
+              | None -> (hash, ref [ df ]) :: a
+              | Some l ->
+                  l := df :: !l;
+                  a)
+            [] input_and_hashes
+        in
+
+        List.map
+          (fun (hash, ref_fd_list) -> get_paths store hash !ref_fd_list)
+          hash_to_input_map
+        |> Lwt.all
+        >>= Lwt_list.fold_left_s
+              (fun a v ->
+                let s =
+                  List.map
+                    (fun (arg_path, targets) ->
+                      ( Fpath.to_string (Datafile.fullpath arg_path),
+                        List.map Fpath.to_string targets ))
+                    v
+                in
+                Lwt.return (s @ a))
+              []
+        >>= fun l ->
+        Lwt.return (Leaf.to_string_for_inputs leaf l)
+        >>= Lwt_list.map_s (fun c -> process acc leaf c)
+        >>= Lwt_list.fold_left_s
+              (fun a v ->
+                let outputs, _build_hash, _pwd, commands = a
+                and no, nh, np, command = v in
+                Lwt.return (no :: outputs, nh, np, command :: commands))
+              acc
+      in
+
+      Lwt_list.fold_left_s outer_process ([], build, "/root", []) commands
+      >>= fun (ids_and_output, _hash, _pwd, cmds) ->
       let ids_and_output = List.rev ids_and_output in
+      let command_actual = List.rev cmds in
       let id = List.hd ids_and_output |> fst in
       let body =
         List.fold_left
           (fun s (command, (_, output)) -> s @ [ command; output ])
           []
-          (List.combine commands_stripped ids_and_output)
+          (List.combine command_actual ids_and_output)
         |> List.filter (fun v -> not (String.equal "" v))
         |> List.map Cmarkit.Block_line.list_of_string
         |> List.concat
@@ -199,7 +263,7 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
     ast (_code_block, block) =
   match Block.kind block with
   | `Publish ->
-      let inputs, _block_id = input_hashes ast block in
+      let inputs = input_hashes ast block in
       let process (hash, files) =
         let copy_file file =
           Store.result store hash >>= function
@@ -218,30 +282,3 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
       Lwt_list.iter_s process inputs >>= fun () ->
       Lwt.return (_code_block, block)
   | _ -> failwith "Expected Publish Block"
-
-(* let validate_dependancy (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
-   Store.result store hash >>= function
-   | None ->
-     Lwt.fail_with (Fmt.str "No result found for %s whilst validating dependancies" hash)
-   | Some store_path -> (
-     let find_files_in_store file =
-       let container_path = Datafile.fullpath file |> Fpath.to_string in
-       let absolute_path = (Filename.concat (Filename.concat store_path "rootfs") container_path) in
-       match Datafile.is_wildcard file with
-       | false -> Lwt_unix.file_exists absolute_path >>= (function
-         | false -> failwith "File not found"
-         | true -> [(Fpath.v absolute_path)]
-         )
-       | true -> (
-         Lwt_unix.files_of_directory absolute_path |> Lwt_stream.to_list >>= (fun x ->
-         Lwt.return (List.filter_map (fun (path : string) ->
-           match path with
-           | "." | ".." -> None
-           | p -> Some (
-             Fpath.v p
-           )
-         ) x))
-       )
-     in
-     Lwt_list.map_s find_files_in_store outputs
-   ) *)

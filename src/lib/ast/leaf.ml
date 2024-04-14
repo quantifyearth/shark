@@ -30,7 +30,7 @@ let to_string_for_inputs l (file_subs_map : (string * string list) list) :
         let updated a =
           List.map
             (fun s ->
-              let regexp = Str.regexp template_path in
+              let regexp = Str.regexp (template_path ^ "\\*?") in
               Str.global_replace regexp s a)
             substitutions
         in
