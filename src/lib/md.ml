@@ -69,14 +69,14 @@ let input_hashes ast block =
   in
 
   let map_to_inputs hb =
-    let hash = Ast.Hyperblock.hash hb |> Option.get in
+    let hashes = Ast.Hyperblock.hashes hb in
     let inputs =
       Ast.Hyperblock.io hb |> snd |> List.map Datafile.id
       |> List.filter_map (fun o -> List.assoc_opt o input_map)
     in
-    (hash, inputs)
+    List.map (fun h -> (h, inputs)) hashes
   in
-  List.map map_to_inputs block_dependencies
+  List.concat_map map_to_inputs block_dependencies
 
 let get_paths (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
   let shark_mount_path = Fpath.add_seg (Fpath.v "/shark") hash in
@@ -163,8 +163,8 @@ let process_run_block ~build_cache store ast
           (* @ links *)
           @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
-      let process (_outputs, build_hash, pwd, _last_cmd) leaf cmdstr :
-          ((string * string) * string * string * string) Lwt.t =
+      let process (_outputs, build_hash, pwd) leaf cmdstr :
+          ((string * string * string) * string * string) Lwt.t =
         Logs.info (fun f ->
             f "Running spec %a" Obuilder_spec.pp
               (spec build_hash pwd leaf cmdstr));
@@ -172,17 +172,16 @@ let process_run_block ~build_cache store ast
         match Command.name command with
         | "cd" ->
             Lwt.return
-              ( (build_hash, ""),
+              ( (build_hash, "", cmdstr),
                 build_hash,
-                Fpath.to_string (List.nth (Command.file_args command) 0),
-                cmdstr )
+                Fpath.to_string (List.nth (Command.file_args command) 0) )
         | _ -> (
             let buf = Buffer.create 128 in
             let log = log `Run buf in
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
             Builder.build builder context (spec build_hash pwd leaf cmdstr)
             >>= function
-            | Ok id -> Lwt.return ((id, Buffer.contents buf), id, pwd, cmdstr)
+            | Ok id -> Lwt.return ((id, Buffer.contents buf, cmdstr), id, pwd)
             | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
             | Error (`Msg m) ->
                 Printf.printf "output: %s\n" (Buffer.contents buf);
@@ -204,7 +203,6 @@ let process_run_block ~build_cache store ast
                   a)
             [] input_and_hashes
         in
-
         List.map
           (fun (hash, ref_fd_list) -> get_paths store hash !ref_fd_list)
           hash_to_input_map
@@ -222,31 +220,40 @@ let process_run_block ~build_cache store ast
               []
         >>= fun l ->
         Lwt.return (Leaf.to_string_for_inputs leaf l)
-        >>= Lwt_list.map_s (fun c -> process acc leaf c)
+        >>= Lwt_list.map_p (fun c -> process acc leaf c)
+        >>= fun l ->
+        let results, _hash, _pwd = acc in
+        let _, hash, pwd = List.hd l in
+        Lwt.return (l :: results, hash, pwd)
+        (*
         >>= Lwt_list.fold_left_s
               (fun a v ->
                 let outputs, _build_hash, _pwd, commands = a
                 and no, nh, np, command = v in
                 Lwt.return (no :: outputs, nh, np, command :: commands))
-              acc
+              (acc_outputs, "", "", acc_commands) *)
       in
 
-      Lwt_list.fold_left_s outer_process ([], build, "/root", []) commands
-      >>= fun (ids_and_output, _hash, _pwd, cmds) ->
-      let ids_and_output = List.rev ids_and_output in
-      let command_actual = List.rev cmds in
-      let id = List.hd ids_and_output |> fst in
+      Lwt_list.fold_left_s outer_process ([], build, "/root") commands
+      >>= fun (ids_and_output_and_cmd, _hash, _pwd) ->
+      let ids_and_output_and_cmd = List.rev ids_and_output_and_cmd in
+      let last = List.hd ids_and_output_and_cmd in
+      let _, id, _ = List.hd last in
+
       let body =
         List.fold_left
-          (fun s (command, (_, output)) -> s @ [ command; output ])
+          (fun s (_, output, command) -> s @ [ command; output ])
           []
-          (List.combine command_actual ids_and_output)
+          (List.concat ids_and_output_and_cmd)
         |> List.filter (fun v -> not (String.equal "" v))
         |> List.map Cmarkit.Block_line.list_of_string
         |> List.concat
       in
+
+      List.iter
+        (fun (_, id, _) -> Ast.Hyperblock.update_hash hyperblock id)
+        last;
       let block = Block.with_hash block id in
-      Ast.Hyperblock.update_hash hyperblock id;
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       Lwt.return (Cmarkit.Block.Code_block.make ~info_string body, block)
   | _ -> failwith "expected run"
@@ -264,6 +271,11 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
   match Block.kind block with
   | `Publish ->
       let inputs = input_hashes ast block in
+      Printf.printf "inputs\n";
+      List.iter
+        (fun (hash, files) ->
+          Printf.printf "\thash: %s has %d files\n" hash (List.length files))
+        inputs;
       let process (hash, files) =
         let copy_file file =
           Store.result store hash >>= function
