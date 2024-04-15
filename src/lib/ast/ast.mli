@@ -36,5 +36,5 @@ val block_by_id : t -> block_id -> Hyperblock.t option
 val find_hyperblock_from_block : t -> Block.t -> Hyperblock.t option
 val find_dependencies : t -> block_id -> Hyperblock.t list
 
-val to_list : t -> Commandgroup.t list
+val to_list : t -> Hyperblock.t list
 (** Convert the AST to a list of command blocks. *)

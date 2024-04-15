@@ -31,29 +31,29 @@ let datafile_to_dot ppf datafile =
     (Datafile.id datafile)
     (Fpath.to_string (Datafile.path datafile))
 
-let render_ast_to_dot ppf ast : unit =
+let render_ast_to_dot ppf hyperblocks : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
-    (fun group ->
-      let commands = Commandgroup.children group in
+    (fun hb ->
+      let commands = Ast.Hyperblock.commands hb in
       List.concat_map
         (fun command ->
           let inputs = Leaf.inputs command and outputs = Leaf.outputs command in
           List.concat [ inputs; outputs ])
         commands)
-    ast
+    hyperblocks
   |> DatafileSet.of_list
   |> DatafileSet.iter (datafile_to_dot ppf);
 
   List.iteri
-    (fun i group ->
-      let name = Commandgroup.name group
-      and commands = Commandgroup.children group in
+    (fun i hb ->
+      let name = Ast.Hyperblock.context hb
+      and commands = Ast.Hyperblock.commands hb in
       Format.fprintf ppf "subgraph \"cluster_%d\" {\n" i;
       Format.fprintf ppf "\tlabel = \"%s\"\n" name;
       List.iter (render_command_to_dot ppf) commands;
       Format.fprintf ppf "}\n")
-    ast;
+    hyperblocks;
   Format.fprintf ppf "}\n"
 
 let render ~template_markdown =
