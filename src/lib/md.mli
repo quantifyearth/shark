@@ -27,6 +27,7 @@ val process_build_block :
 
 val process_run_block :
   build_cache:Build_cache.t ->
+  pool:unit Lwt_pool.t ->
   Obuilder.Store_spec.store ->
   Ast.t ->
   builder ->
