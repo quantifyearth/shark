@@ -59,5 +59,9 @@ let render_ast_to_dot ppf hyperblocks : unit =
 let render ~template_markdown =
   Ast.of_sharkdown ~template_markdown
   |> Ast.to_list
+  |> List.filter (fun hb ->
+         match Block.kind (Ast.Hyperblock.block hb) with
+         | `Build -> false
+         | _ -> true)
   |> render_ast_to_dot Format.str_formatter;
   Format.flush_str_formatter ()
