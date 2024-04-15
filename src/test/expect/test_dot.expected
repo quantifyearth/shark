@@ -29,6 +29,7 @@ digraph{
 	n51[shape="cylinder",label="/data/tmf/123/pairs"];
 	n53[shape="cylinder",label="/data/tmf/123/additionality.csv"];
 subgraph "cluster_0" {
+	style = solid
 	label = "JRC"
 	n4[shape="box",label="methods.inputs.download_jrc_data"];
 	n4->n2[penwidth="2.0"];
@@ -36,6 +37,7 @@ subgraph "cluster_0" {
 
 }
 subgraph "cluster_1" {
+	style = solid
 	label = "JRC"
 	n3->n6[penwidth="2.0"];
 	n6[shape="box",label="methods.inputs.generate_fine_circular_coverage"];
@@ -43,12 +45,14 @@ subgraph "cluster_1" {
 
 }
 subgraph "cluster_2" {
+	style = solid
 	label = "Ecoregions"
 	n8[shape="box",label="methods.inputs.download_shapefiles"];
 	n8->n7[penwidth="2.0"];
 
 }
 subgraph "cluster_3" {
+	style = solid
 	label = "Ecoregions"
 	n7->n10[penwidth="2.0"];
 	n3->n10[penwidth="2.0"];
@@ -57,12 +61,14 @@ subgraph "cluster_3" {
 
 }
 subgraph "cluster_4" {
+	style = solid
 	label = "ACCESS"
 	n12[shape="box",label="methods.inputs.download_accessibility"];
 	n12->n11[penwidth="2.0"];
 
 }
 subgraph "cluster_5" {
+	style = solid
 	label = "ACCESS"
 	n11->n14[penwidth="2.0"];
 	n3->n14[penwidth="2.0"];
@@ -71,12 +77,14 @@ subgraph "cluster_5" {
 
 }
 subgraph "cluster_6" {
+	style = solid
 	label = "Country boarders"
 	n16[shape="box",label="methods.inputs.osm_countries"];
 	n16->n15[penwidth="2.0"];
 
 }
 subgraph "cluster_7" {
+	style = solid
 	label = "Make variations on project shapes"
 	n0->n18[penwidth="2.0"];
 	n18[shape="box",label="methods.inputs.generate_boundary"];
@@ -84,6 +92,7 @@ subgraph "cluster_7" {
 
 }
 subgraph "cluster_8" {
+	style = solid
 	label = "Make variations on project shapes"
 	n0->n20[penwidth="2.0"];
 	n20[shape="box",label="methods.inputs.generate_leakage"];
@@ -91,6 +100,7 @@ subgraph "cluster_8" {
 
 }
 subgraph "cluster_9" {
+	style = solid
 	label = "Make LUC tiles"
 	n17->n22[penwidth="2.0"];
 	n3->n22[penwidth="2.0"];
@@ -99,6 +109,7 @@ subgraph "cluster_9" {
 
 }
 subgraph "cluster_10" {
+	style = solid
 	label = "GEDI data"
 	n17->n24[penwidth="2.0"];
 	n24[shape="box",label="methods.inputs.download_gedi_data"];
@@ -106,12 +117,14 @@ subgraph "cluster_10" {
 
 }
 subgraph "cluster_11" {
+	style = solid
 	label = "GEDI data"
 	n23->n25[penwidth="2.0"];
 	n25[shape="box",label="methods.inputs.import_gedi_data"];
 
 }
 subgraph "cluster_12" {
+	style = solid
 	label = "GEDI data"
 	n17->n27[penwidth="2.0"];
 	n21->n27[penwidth="2.0"];
@@ -120,6 +133,7 @@ subgraph "cluster_12" {
 
 }
 subgraph "cluster_13" {
+	style = solid
 	label = "GEDI data"
 	n0->n29[penwidth="2.0"];
 	n15->n29[penwidth="2.0"];
@@ -128,6 +142,7 @@ subgraph "cluster_13" {
 
 }
 subgraph "cluster_14" {
+	style = solid
 	label = "GEDI data"
 	n0->n31[penwidth="2.0"];
 	n28->n31[penwidth="2.0"];
@@ -139,6 +154,7 @@ subgraph "cluster_14" {
 
 }
 subgraph "cluster_15" {
+	style = solid
 	label = "Elevation and slope data"
 	n0->n34[penwidth="2.0"];
 	n30->n34[penwidth="2.0"];
@@ -148,6 +164,7 @@ subgraph "cluster_15" {
 
 }
 subgraph "cluster_16" {
+	style = solid
 	label = "Elevation and slope data"
 	n33->n36[penwidth="2.0"];
 	n36[shape="box",label="methods.inputs.generate_slope"];
@@ -155,6 +172,7 @@ subgraph "cluster_16" {
 
 }
 subgraph "cluster_17" {
+	style = solid
 	label = "Elevation and slope data"
 	n3->n38[penwidth="2.0"];
 	n33->n38[penwidth="2.0"];
@@ -168,6 +186,7 @@ subgraph "cluster_17" {
 
 }
 subgraph "cluster_18" {
+	style = solid
 	label = "Country raster"
 	n3->n42[penwidth="2.0"];
 	n30->n42[penwidth="2.0"];
@@ -177,6 +196,7 @@ subgraph "cluster_18" {
 
 }
 subgraph "cluster_19" {
+	style = solid
 	label = "Calculate set K"
 	n0->n44[penwidth="2.0"];
 	n3->n44[penwidth="2.0"];
@@ -191,6 +211,7 @@ subgraph "cluster_19" {
 
 }
 subgraph "cluster_20" {
+	style = solid
 	label = "Calculate set M"
 	n43->n46[penwidth="2.0"];
 	n30->n46[penwidth="2.0"];
@@ -206,6 +227,7 @@ subgraph "cluster_20" {
 
 }
 subgraph "cluster_21" {
+	style = solid
 	label = "Calculate set M"
 	n45->n48[penwidth="2.0"];
 	n48[shape="box",label="methods.matching.build_m_raster"];
@@ -213,6 +235,7 @@ subgraph "cluster_21" {
 
 }
 subgraph "cluster_22" {
+	style = solid
 	label = "Calculate set M"
 	n47->n50[penwidth="2.0"];
 	n30->n50[penwidth="2.0"];
@@ -228,6 +251,7 @@ subgraph "cluster_22" {
 
 }
 subgraph "cluster_23" {
+	style = solid
 	label = "Find pairs"
 	n43->n52[penwidth="2.0"];
 	n49->n52[penwidth="2.0"];
@@ -236,6 +260,7 @@ subgraph "cluster_23" {
 
 }
 subgraph "cluster_24" {
+	style = solid
 	label = "Calculate additionality"
 	n0->n54[penwidth="2.0"];
 	n26->n54[penwidth="2.0"];

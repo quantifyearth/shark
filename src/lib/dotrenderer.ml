@@ -1,8 +1,6 @@
 module DatafileSet = Set.Make (Datafile)
 
 let render_command_to_dot ppf command =
-  (* let node_style = process_style node.style in *)
-  (* TODO - some commands like littlejohn get different box styles*)
   let process_index = Leaf.id command in
   List.iter
     (fun datafile ->
@@ -26,34 +24,63 @@ let render_command_to_dot ppf command =
     (Leaf.outputs command);
   Format.fprintf ppf "\n"
 
+let render_publish_to_dot ppf command =
+  let process_index = Leaf.id command in
+  (* In publish blocks the targets end up as commands where the name is the target *)
+  Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n" process_index
+    (Command.name (Leaf.command command));
+  List.iter
+    (fun datafile ->
+      let label =
+        match Datafile.subpath datafile with
+        | Some x -> Fmt.str ",label=\"%s\"" x
+        | None -> ""
+      in
+      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"%s];\n"
+        (Datafile.id datafile) process_index label)
+    (Leaf.inputs command)
+
 let datafile_to_dot ppf datafile =
   Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n"
     (Datafile.id datafile)
     (Fpath.to_string (Datafile.path datafile))
 
-let render_ast_to_dot ppf ast : unit =
+let render_ast_to_dot ppf hyperblocks : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
-    (fun group ->
-      let commands = Commandgroup.children group in
+    (fun hb ->
+      let commands = Ast.Hyperblock.commands hb in
       List.concat_map
         (fun command ->
           let inputs = Leaf.inputs command and outputs = Leaf.outputs command in
           List.concat [ inputs; outputs ])
         commands)
-    ast
+    hyperblocks
   |> DatafileSet.of_list
   |> DatafileSet.iter (datafile_to_dot ppf);
 
   List.iteri
-    (fun i group ->
-      let name = Commandgroup.name group
-      and commands = Commandgroup.children group in
+    (fun i hb ->
+      let kind = Block.kind (Ast.Hyperblock.block hb) in
+      let name, style =
+        match kind with
+        | `Publish -> ("Publish", "bold")
+        | _ -> (Ast.Hyperblock.context hb, "solid")
+      and commands = Ast.Hyperblock.commands hb in
       Format.fprintf ppf "subgraph \"cluster_%d\" {\n" i;
+      Format.fprintf ppf "\tstyle = %s\n" style;
       Format.fprintf ppf "\tlabel = \"%s\"\n" name;
-      List.iter (render_command_to_dot ppf) commands;
+
+      let renderer =
+        match kind with
+        | `Run -> render_command_to_dot
+        | `Publish -> render_publish_to_dot
+        | _ -> fun _a _b -> ()
+      in
+      List.iter (renderer ppf) commands;
+
       Format.fprintf ppf "}\n")
-    ast;
+    hyperblocks;
   Format.fprintf ppf "}\n"
 
 let render ~template_markdown =

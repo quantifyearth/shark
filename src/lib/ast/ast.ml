@@ -214,13 +214,7 @@ let pass_one_on_list inputs section_list =
 
 (* ----- public interface ----- *)
 
-let to_list ast =
-  (* in days of yore this was by section, but for now we do it by executable block *)
-  List.map
-    (fun x ->
-      let _hbid, h = x in
-      Commandgroup.v (Hyperblock.context h) (Hyperblock.commands h))
-    ast.nodes
+let to_list ast = List.map snd ast.nodes
 
 let of_sharkdown ~template_markdown =
   let metadata, sections =
