@@ -128,7 +128,7 @@ let get_paths (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
       in
       Lwt_list.map_s find_files_in_store outputs
 
-let process_run_block ~build_cache store ast
+let process_run_block ~build_cache ~pool store ast
     (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
   match Block.kind block with
@@ -172,8 +172,9 @@ let process_run_block ~build_cache store ast
           (* @ links *)
           @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
-      let process (_outputs, build_hash, pwd) leaf cmdstr :
+      let process pool (_outputs, build_hash, pwd) leaf cmdstr :
           (CommandResult.t * string * string) Lwt.t =
+        Lwt_pool.use pool @@ fun () ->
         Logs.info (fun f ->
             f "Running spec %a" Obuilder_spec.pp
               (spec build_hash pwd leaf cmdstr));
@@ -239,7 +240,7 @@ let process_run_block ~build_cache store ast
               []
         >>= fun l ->
         Lwt.return (Leaf.to_string_for_inputs leaf l)
-        >>= Lwt_list.map_p (fun c -> process acc leaf c)
+        >>= Lwt_list.map_p (fun c -> process pool acc leaf c)
         >>= fun l ->
         let results, _hash, _pwd = acc in
         let _, hash, pwd = List.hd l in

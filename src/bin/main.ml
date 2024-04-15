@@ -124,7 +124,8 @@ let edit ~proc ~net ~fs () file port =
   and server = Cohttp_eio.Server.make ~callback:handler () in
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
-let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
+let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher threads
+    =
   run_eventloop @@ fun () ->
   let ((_, store) as s) = store_or_default store in
   let (Builder ((module Builder), _builder) as obuilder) =
@@ -139,6 +140,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
   let file_path = Eio.Path.(fs / file) in
   let template_markdown = Eio.Path.load file_path in
   let ast = Shark.Ast.of_sharkdown ~template_markdown in
+
+  let pool = Lwt_pool.create threads (fun () -> Lwt.return_unit) in
 
   let f ~build_cache code_block block =
     if no_run then code_block
@@ -167,7 +170,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher =
             let open Lwt.Infix in
             Lwt_eio.run_lwt @@ fun () ->
             store >>= fun store ->
-            Shark.Md.process_run_block ~build_cache store ast obuilder
+            Shark.Md.process_run_block ~build_cache ~pool store ast obuilder
               (code_block, block)
           in
           cb
@@ -264,6 +267,12 @@ let port =
   @@ Arg.info ~doc:"Optional port number to serve the markdown file over."
        ~docv:"PORT" [ "port" ]
 
+let threads =
+  Arg.value
+  @@ Arg.opt Arg.(int) 4
+  @@ Arg.info ~doc:"Number of concurrent threads to use" ~docv:"THREADS"
+       [ "threads" ]
+
 let fetcher =
   Arg.required
   @@ Arg.opt Arg.(some string) (Some "docker")
@@ -305,7 +314,7 @@ let md ~fs ~net ~domain_mgr ~proc ~clock =
     Term.(
       const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
-      $ markdown_file $ port $ fetcher)
+      $ markdown_file $ port $ fetcher $ threads)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in
