@@ -457,7 +457,6 @@ let edit_routes ~proc md_file (_conn : Cohttp_eio.Server.conn) request body =
 let router ~proc ~fs ~store md_file (conn : Cohttp_eio.Server.conn) request body
     =
   let open Routes in
-  let store = Lwt_eio.Promise.await_lwt store in
   let routes =
     [
       route nil (serve md_file);
