@@ -23,19 +23,20 @@ val process_build_block :
   builder ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
-  (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
+  Cmarkit.Block.Code_block.t * Block.t
 
 val process_run_block :
+  fs:_ Eio.Path.t ->
   build_cache:Build_cache.t ->
-  pool:unit Lwt_pool.t ->
+  pool:unit Eio.Pool.t ->
   Obuilder.Store_spec.store ->
   Ast.t ->
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
-  (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
+  Cmarkit.Block.Code_block.t * Block.t
 
 val process_publish_block :
   Obuilder.Store_spec.store ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
-  (Cmarkit.Block.Code_block.t * Block.t) Lwt.t
+  Cmarkit.Block.Code_block.t * Block.t

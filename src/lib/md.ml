@@ -1,4 +1,6 @@
-open Lwt.Infix
+open Eio
+
+let ( / ) = Eio.Path.( / )
 
 module CommandResult = struct
   type t = { build_hash : string; output : string; command : string }
@@ -48,7 +50,7 @@ let process_build_block (Builder ((module Builder), builder)) ast
       let buf = Buffer.create 128 in
       let log = log `Build buf in
       let context = Obuilder.Context.v ~log ~src_dir:"." () in
-      Builder.build builder context spec >>= function
+      match Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec with
       | Error `Cancelled -> failwith "Cancelled by user"
       | Error (`Msg m) -> failwith m
       | Ok id ->
@@ -62,7 +64,7 @@ let process_build_block (Builder ((module Builder), builder)) ast
               ~info_string:(info_string, Cmarkit.Meta.none)
               (Cmarkit.Block.Code_block.code code_block)
           in
-          Lwt.return (new_code_block, block_with_hash))
+          (new_code_block, block_with_hash))
   | _ -> failwith "expected build"
 
 let input_hashes ast block =
@@ -87,12 +89,13 @@ let input_hashes ast block =
   in
   List.concat_map map_to_inputs block_dependencies
 
-let get_paths (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
+let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
+    outputs =
   let shark_mount_path = Fpath.add_seg (Fpath.v "/shark") hash in
-  Store.result store hash >>= function
+  match Lwt_eio.run_lwt @@ fun () -> Store.result store hash with
   | None ->
-      Lwt.fail_with
-        (Fmt.str "No result found for %s whilst validating dependancies" hash)
+      failwith
+        (Fmt.str "No result found for %s whilst validating dependencies" hash)
   | Some store_path ->
       let rootfs = Fpath.add_seg (Fpath.v store_path) "rootfs" in
       let find_files_in_store file =
@@ -100,7 +103,7 @@ let get_paths (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
         let root = Fpath.v "/" in
         let absolute_path =
           Fpath.relativize ~root container_path
-          |> Option.get |> Fpath.append rootfs
+          |> Option.get |> Fpath.append rootfs |> Fpath.to_string
         in
         let shark_destination_path =
           let root = Fpath.v "/data/" in
@@ -110,25 +113,22 @@ let get_paths (Obuilder.Store_spec.Store ((module Store), store)) hash outputs =
         in
         match Datafile.is_wildcard file with
         | false -> (
-            Lwt_unix.file_exists (Fpath.to_string absolute_path) >>= function
-            | false -> Lwt.return (file, [])
-            | true -> Lwt.return (file, [ shark_destination_path ]))
+            match Path.kind ~follow:true (fs / absolute_path) with
+            | `Not_found -> (file, [])
+            | _ -> (file, [ shark_destination_path ]))
         | true ->
-            Lwt_unix.files_of_directory (Fpath.to_string absolute_path)
-            |> Lwt_stream.to_list
-            >>= fun x ->
-            Lwt.return
-              ( file,
-                List.filter_map
-                  (fun (path : string) ->
-                    match path with
-                    | "." | ".." -> None
-                    | p -> Some (Fpath.add_seg shark_destination_path p))
-                  x )
+            let files = Path.read_dir (fs / absolute_path) in
+            ( file,
+              List.filter_map
+                (fun (path : string) ->
+                  match path with
+                  | "." | ".." -> None
+                  | p -> Some (Fpath.add_seg shark_destination_path p))
+                files )
       in
-      Lwt_list.map_s find_files_in_store outputs
+      List.map find_files_in_store outputs
 
-let process_run_block ~build_cache ~pool store ast
+let process_run_block ~fs ~build_cache ~pool store ast
     (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
   match Block.kind block with
@@ -173,34 +173,34 @@ let process_run_block ~build_cache ~pool store ast
           @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
       let process pool (_outputs, build_hash, pwd) leaf cmdstr :
-          (CommandResult.t * string * string) Lwt.t =
-        Lwt_pool.use pool @@ fun () ->
+          CommandResult.t * string * string =
+        Eio.Pool.use pool @@ fun () ->
         Logs.info (fun f ->
             f "Running spec %a" Obuilder_spec.pp
               (spec build_hash pwd leaf cmdstr));
         let command = Leaf.command leaf in
         match Command.name command with
         | "cd" ->
-            Lwt.return
-              ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
-                build_hash,
-                Fpath.to_string (List.nth (Command.file_args command) 0) )
+            ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
+              build_hash,
+              Fpath.to_string (List.nth (Command.file_args command) 0) )
         | _ -> (
             let buf = Buffer.create 128 in
             let log = log `Run buf in
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
-            Builder.build builder context (spec build_hash pwd leaf cmdstr)
-            >>= function
+            match
+              Lwt_eio.run_lwt @@ fun () ->
+              Builder.build builder context (spec build_hash pwd leaf cmdstr)
+            with
             | Ok id ->
-                Lwt.return
-                  ( CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
-                      ~command:cmdstr,
-                    id,
-                    pwd )
-            | Error `Cancelled -> Lwt.fail_with "Cancelled by user"
+                ( CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
+                    ~command:cmdstr,
+                  id,
+                  pwd )
+            | Error `Cancelled -> failwith "Cancelled by user"
             | Error (`Msg m) ->
-                Printf.printf "output: %s\n" (Buffer.contents buf);
-                Lwt.fail_with m)
+                Printf.eprintf "Output: %s\n" (Buffer.contents buf);
+                failwith m)
       in
 
       let outer_process acc leaf =
@@ -223,32 +223,34 @@ let process_run_block ~build_cache ~pool store ast
                   a)
             [] input_and_hashes
         in
-        List.map
-          (fun (hash, ref_fd_list) -> get_paths store hash !ref_fd_list)
-          hash_to_input_map
-        |> Lwt.all
-        >>= Lwt_list.fold_left_s
-              (fun a v ->
-                let s =
-                  List.map
-                    (fun (arg_path, targets) ->
-                      ( Fpath.to_string (Datafile.fullpath arg_path),
-                        List.map Fpath.to_string targets ))
-                    v
-                in
-                Lwt.return (s @ a))
-              []
-        >>= fun l ->
-        Lwt.return (Leaf.to_string_for_inputs leaf l)
-        >>= Lwt_list.map_p (fun c -> process pool acc leaf c)
-        >>= fun l ->
+        let paths =
+          List.map
+            (fun (hash, ref_fd_list) -> get_paths ~fs store hash !ref_fd_list)
+            hash_to_input_map
+        in
+        let l =
+          List.fold_left
+            (fun a v ->
+              let s =
+                List.map
+                  (fun (arg_path, targets) ->
+                    ( Fpath.to_string (Datafile.fullpath arg_path),
+                      List.map Fpath.to_string targets ))
+                  v
+              in
+              s @ a)
+            [] paths
+        in
+        let inputs = Leaf.to_string_for_inputs leaf l in
+        let l = Fiber.List.map (process pool acc leaf) inputs in
         let results, _hash, _pwd = acc in
         let _, hash, pwd = List.hd l in
-        Lwt.return (l :: results, hash, pwd)
+        (l :: results, hash, pwd)
       in
 
-      Lwt_list.fold_left_s outer_process ([], build, "/root") commands
-      >>= fun (ids_and_output_and_cmd, _hash, _pwd) ->
+      let ids_and_output_and_cmd, _hash, _pwd =
+        List.fold_left outer_process ([], build, "/root") commands
+      in
       let ids_and_output_and_cmd = List.rev ids_and_output_and_cmd in
       let last = List.hd ids_and_output_and_cmd in
       let _, id, _ = List.hd last in
@@ -269,10 +271,11 @@ let process_run_block ~build_cache ~pool store ast
         last;
       let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
-      Lwt.return (Cmarkit.Block.Code_block.make ~info_string body, block)
+      (Cmarkit.Block.Code_block.make ~info_string body, block)
   | _ -> failwith "expected run"
 
 let copy ?chown ~src ~dst () =
+  Lwt_eio.run_lwt @@ fun () ->
   let chown =
     match chown with Some uid_gid -> [ "--chown"; uid_gid ] | None -> []
   in
@@ -285,16 +288,17 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
   match Block.kind block with
   | `Publish ->
       let inputs = input_hashes ast block in
-      Printf.printf "inputs\n";
+      Logs.info (fun f -> f "Inputs for publish");
       List.iter
         (fun (hash, files) ->
-          Printf.printf "\thash: %s has %d files\n" hash (List.length files))
+          Logs.info (fun f ->
+              f "hash: %s has %d files\n" hash (List.length files)))
         inputs;
       let process (hash, files) =
         let copy_file file =
-          Store.result store hash >>= function
+          match Lwt_eio.run_lwt @@ fun () -> Store.result store hash with
           | None ->
-              Lwt.fail_with
+              failwith
                 (Fmt.str "No result found for %s whilst publishing %a" hash
                    Fpath.pp (Datafile.path file))
           | Some f ->
@@ -303,8 +307,8 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
                 ~src:(Filename.concat (Filename.concat f "rootfs") path)
                 ~dst:"./_shark" ()
         in
-        Lwt_list.iter_s copy_file files
+        List.iter copy_file files
       in
-      Lwt_list.iter_s process inputs >>= fun () ->
-      Lwt.return (_code_block, block)
+      List.iter process inputs;
+      (_code_block, block)
   | _ -> failwith "Expected Publish Block"
