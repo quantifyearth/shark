@@ -241,11 +241,6 @@ let output_directory =
        [ "output-dir" ]
 
 let src_dir =
-  Arg.required
-  @@ Arg.pos 0 Arg.(some dir) None
-  @@ Arg.info ~doc:"Directory containing the source files." ~docv:"DIR" []
-
-let src_dir_opt =
   Arg.value
   @@ Arg.opt Arg.(dir) "."
   @@ Arg.info ~doc:"Directory containing the source files." ~docv:"SRC_DIR"
@@ -314,7 +309,7 @@ let md ~fs ~net ~domain_mgr ~proc ~clock =
     Term.(
       const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
-      $ markdown_file $ port $ fetcher $ jobs $ src_dir_opt)
+      $ markdown_file $ port $ fetcher $ jobs $ src_dir)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in
