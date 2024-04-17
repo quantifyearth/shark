@@ -213,9 +213,12 @@ let process_run_block ~fs ~build_cache ~pool store ast
                   pwd,
                   env )
             | Error `Cancelled -> failwith "Cancelled by user"
-            | Error (`Msg m) ->
-                Printf.eprintf "Output: %s\n" (Buffer.contents buf);
-                failwith m)
+            | Error (`Msg _m) ->
+                ( CommandResult.v ~build_hash ~output:(Buffer.contents buf)
+                    ~command:cmdstr,
+                  build_hash,
+                  pwd,
+                  env ))
       in
 
       let outer_process acc leaf =
@@ -281,8 +284,7 @@ let process_run_block ~fs ~build_cache ~pool store ast
       in
 
       List.iter
-        (fun (_, id, _, _) ->
-          Ast.Hyperblock.update_hash hyperblock id)
+        (fun (_, id, _, _) -> Ast.Hyperblock.update_hash hyperblock id)
         last;
       let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
@@ -313,17 +315,27 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
         let copy_file file =
           match Lwt_eio.run_lwt @@ fun () -> Store.result store hash with
           | None ->
-              failwith
-                (Fmt.str "No result found for %s whilst publishing %a" hash
-                   Fpath.pp (Datafile.path file))
-          | Some f ->
-              let path = Datafile.path file |> Fpath.to_string in
-              copy
-                ~src:(Filename.concat (Filename.concat f "rootfs") path)
-                ~dst:"./_shark" ()
+              Fmt.str "No result found for %s whilst publishing %a" hash
+                Fpath.pp (Datafile.path file)
+          | Some f -> (
+              let root = Fpath.v "/" in
+              let path =
+                Datafile.path file |> Fpath.relativize ~root |> Option.get
+                |> Fpath.to_string
+              in
+              let src = Filename.concat (Filename.concat f "rootfs") path in
+              try
+                copy ~src ~dst:"./_shark" ();
+                src
+              with Failure msg -> Fmt.str "Failed to copy %s: %s" src msg)
         in
-        List.iter copy_file files
+        List.map copy_file files
       in
-      List.iter process inputs;
-      (_code_block, block)
+      let outputs =
+        List.map process inputs |> List.concat
+        |> List.map Cmarkit.Block_line.list_of_string
+        |> List.concat
+      in
+      let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
+      (Cmarkit.Block.Code_block.make ~info_string outputs, block)
   | _ -> failwith "Expected Publish Block"
