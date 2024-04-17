@@ -9,3 +9,4 @@ val of_string : string -> t option
 val to_string : t -> string
 val name : t -> string
 val file_args : t -> Fpath.t list
+val raw_args : t -> string list

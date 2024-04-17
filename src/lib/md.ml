@@ -1,3 +1,4 @@
+open Astring
 open Eio
 
 let ( / ) = Eio.Path.( / )
@@ -164,39 +165,53 @@ let process_run_block ~fs ~build_cache ~pool store ast
           (Leaf.outputs l)
       in
 
-      let spec build_hash pwd leaf cmdstr =
+      let spec build_hash pwd environment leaf cmdstr =
         let open Obuilder_spec in
         stage ~from:(`Build build_hash)
           ([ user_unix ~uid:0 ~gid:0; workdir pwd ]
+          @ List.map (fun (k, v) -> env k v) environment
           @ target_dirs leaf
           (* @ links *)
           @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
-      let process pool (_outputs, build_hash, pwd) leaf cmdstr :
-          CommandResult.t * string * string =
+      let process pool (_outputs, build_hash, pwd, env) leaf cmdstr :
+          CommandResult.t * string * string * (string * string) list =
         Eio.Pool.use pool @@ fun () ->
         Logs.info (fun f ->
             f "Running spec %a" Obuilder_spec.pp
-              (spec build_hash pwd leaf cmdstr));
+              (spec build_hash pwd env leaf cmdstr));
         let command = Leaf.command leaf in
         match Command.name command with
         | "cd" ->
             ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
               build_hash,
-              Fpath.to_string (List.nth (Command.file_args command) 0) )
+              Fpath.to_string (List.nth (Command.file_args command) 0),
+              env )
+        | "export" ->
+            let parts =
+              String.concat (List.tl (Command.raw_args command))
+              |> String.cuts ~sep:"="
+            in
+            let key = List.nth parts 0 and value = List.nth parts 1 in
+            ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
+              build_hash,
+              pwd,
+              (key, value) :: List.remove_assoc key env )
         | _ -> (
             let buf = Buffer.create 128 in
             let log = log `Run buf in
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
             match
               Lwt_eio.run_lwt @@ fun () ->
-              Builder.build builder context (spec build_hash pwd leaf cmdstr)
+              Builder.build builder context
+                (spec build_hash pwd env leaf cmdstr)
             with
             | Ok id ->
                 ( CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
                     ~command:cmdstr,
                   id,
-                  pwd )
+                  pwd,
+                  env )
             | Error `Cancelled -> failwith "Cancelled by user"
             | Error (`Msg m) ->
                 Printf.eprintf "Output: %s\n" (Buffer.contents buf);
@@ -243,20 +258,20 @@ let process_run_block ~fs ~build_cache ~pool store ast
         in
         let inputs = Leaf.to_string_for_inputs leaf l in
         let l = Fiber.List.map (process pool acc leaf) inputs in
-        let results, _hash, _pwd = acc in
-        let _, hash, pwd = List.hd l in
-        (l :: results, hash, pwd)
+        let results, _hash, _pwd, _env = acc in
+        let _, hash, pwd, env = List.hd l in
+        (l :: results, hash, pwd, env)
       in
 
-      let ids_and_output_and_cmd, _hash, _pwd =
-        List.fold_left outer_process ([], build, "/root") commands
+      let ids_and_output_and_cmd, _hash, _pwd, _env =
+        List.fold_left outer_process ([], build, "/root", []) commands
       in
       let last = List.hd ids_and_output_and_cmd in
-      let _, id, _ = List.hd last in
+      let _, id, _, _ = List.hd last in
 
       let body =
         List.fold_left
-          (fun s (r, _, _) ->
+          (fun s (r, _, _, _) ->
             s @ [ CommandResult.command r; CommandResult.output r ])
           []
           (List.concat (List.rev ids_and_output_and_cmd))
@@ -266,7 +281,8 @@ let process_run_block ~fs ~build_cache ~pool store ast
       in
 
       List.iter
-        (fun (_, id, _) -> Ast.Hyperblock.update_hash hyperblock id)
+        (fun (_, id, _, _) ->
+          Ast.Hyperblock.update_hash hyperblock id)
         last;
       let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
