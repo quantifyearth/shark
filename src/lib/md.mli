@@ -20,6 +20,7 @@ type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
 val process_build_block :
+  ?src_dir:string ->
   builder ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->

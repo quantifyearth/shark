@@ -40,8 +40,8 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_build_block (Builder ((module Builder), builder)) ast
-    (code_block, block) =
+let process_build_block ?(src_dir = ".") (Builder ((module Builder), builder))
+    ast (code_block, block) =
   match Block.kind block with
   | `Build -> (
       let spec =
@@ -49,7 +49,7 @@ let process_build_block (Builder ((module Builder), builder)) ast
       in
       let buf = Buffer.create 128 in
       let log = log `Build buf in
-      let context = Obuilder.Context.v ~log ~src_dir:"." () in
+      let context = Obuilder.Context.v ~log ~src_dir () in
       match Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec with
       | Error `Cancelled -> failwith "Cancelled by user"
       | Error (`Msg m) -> failwith m

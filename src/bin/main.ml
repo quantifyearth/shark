@@ -124,7 +124,8 @@ let edit ~proc ~net ~fs () file port =
   and server = Cohttp_eio.Server.make ~callback:handler () in
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
-let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs =
+let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
+    src_dir =
   run_eventloop @@ fun () ->
   let ((_, store) as s) = store_or_default store in
   let (Builder ((module Builder), _builder) as obuilder) =
@@ -155,7 +156,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs =
           let _alias, _id, cb =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
             let cb, blk =
-              Shark.Md.process_build_block obuilder ast (code_block, block)
+              Shark.Md.process_build_block ~src_dir obuilder ast
+                (code_block, block)
             in
             (Shark.Block.alias blk, Option.get (Shark.Block.hash blk), cb)
           in
@@ -243,6 +245,12 @@ let src_dir =
   @@ Arg.pos 0 Arg.(some dir) None
   @@ Arg.info ~doc:"Directory containing the source files." ~docv:"DIR" []
 
+let src_dir_opt =
+  Arg.value
+  @@ Arg.opt Arg.(dir) "."
+  @@ Arg.info ~doc:"Directory containing the source files." ~docv:"SRC_DIR"
+       [ "src_dir" ]
+
 let store =
   Arg.value
   @@ Arg.opt Arg.(some Store_spec.store_t) None
@@ -306,7 +314,7 @@ let md ~fs ~net ~domain_mgr ~proc ~clock =
     Term.(
       const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
-      $ markdown_file $ port $ fetcher $ jobs)
+      $ markdown_file $ port $ fetcher $ jobs $ src_dir_opt)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in
