@@ -14,6 +14,7 @@ type t = { name : string; args : string list; file_args : path list }
 
 let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 let v ~name ~args ~file_args = { name; args; file_args }
+let raw_args c = c.args
 let magic_path_regex = Str.regexp "^/data"
 
 let find_file_args args =
