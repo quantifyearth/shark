@@ -251,7 +251,6 @@ let process_run_block ~fs ~build_cache ~pool store ast
       let ids_and_output_and_cmd, _hash, _pwd =
         List.fold_left outer_process ([], build, "/root") commands
       in
-      let ids_and_output_and_cmd = List.rev ids_and_output_and_cmd in
       let last = List.hd ids_and_output_and_cmd in
       let _, id, _ = List.hd last in
 
@@ -260,7 +259,7 @@ let process_run_block ~fs ~build_cache ~pool store ast
           (fun s (r, _, _) ->
             s @ [ CommandResult.command r; CommandResult.output r ])
           []
-          (List.concat ids_and_output_and_cmd)
+          (List.concat (List.rev ids_and_output_and_cmd))
         |> List.filter (fun v -> not (String.equal "" v))
         |> List.map Cmarkit.Block_line.list_of_string
         |> List.concat
