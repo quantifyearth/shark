@@ -19,8 +19,10 @@ val map_blocks :
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
+type build_ctx = { builder : builder; db : Db.t }
+
 val process_build_block :
-  builder ->
+  build_ctx ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
   Cmarkit.Block.Code_block.t * Block.t
@@ -31,7 +33,7 @@ val process_run_block :
   pool:unit Eio.Pool.t ->
   Obuilder.Store_spec.store ->
   Ast.t ->
-  builder ->
+  build_ctx ->
   Cmarkit.Block.Code_block.t * Block.t ->
   Cmarkit.Block.Code_block.t * Block.t
 

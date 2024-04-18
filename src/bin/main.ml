@@ -130,6 +130,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs =
   let (Builder ((module Builder), _builder) as obuilder) =
     create_builder ~fs ~net ~domain_mgr fetcher s conf
   in
+  let db = Shark.Db.create (Shark.Db.Raw.of_dir "./sharkdb") in
+  let build_ctx = Shark.Md.{ builder = obuilder; db } in
   Fun.protect ~finally:(fun () -> ()) @@ fun () ->
   let doc =
     In_channel.with_open_bin file @@ fun ic ->
@@ -155,15 +157,15 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs =
           let _alias, _id, cb =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
             let cb, blk =
-              Shark.Md.process_build_block obuilder ast (code_block, block)
+              Shark.Md.process_build_block build_ctx ast (code_block, block)
             in
             (Shark.Block.alias blk, Option.get (Shark.Block.hash blk), cb)
           in
           cb
       | `Run ->
           let cb, _result_block =
-            Shark.Md.process_run_block ~fs ~build_cache ~pool store ast obuilder
-              (code_block, block)
+            Shark.Md.process_run_block ~fs ~build_cache ~pool store ast
+              build_ctx (code_block, block)
           in
           cb
   in

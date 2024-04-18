@@ -28,6 +28,8 @@ let map_blocks (doc : Cmarkit.Doc.t) ~f =
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
 
+type build_ctx = { builder : builder; db : Db.t }
+
 module Sandbox = Obuilder.Native_sandbox
 module Fetcher = Obuilder.Docker_extract
 module Store_spec = Obuilder.Store_spec
@@ -40,7 +42,8 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_build_block (Builder ((module Builder), builder)) ast
+let process_build_block
+    { builder = Builder ((module Builder), builder); db = _ } ast
     (code_block, block) =
   match Block.kind block with
   | `Build -> (
@@ -129,7 +132,7 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
       List.map find_files_in_store outputs
 
 let process_run_block ~fs ~build_cache ~pool store ast
-    (Builder ((module Builder), builder)) (_code_block, block) =
+    { builder = Builder ((module Builder), builder); db } (_code_block, block) =
   let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
   match Block.kind block with
   | `Run ->
@@ -188,11 +191,13 @@ let process_run_block ~fs ~build_cache ~pool store ast
             let buf = Buffer.create 128 in
             let log = log `Run buf in
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
+            let ospec = spec build_hash pwd leaf cmdstr in
             match
-              Lwt_eio.run_lwt @@ fun () ->
-              Builder.build builder context (spec build_hash pwd leaf cmdstr)
+              Lwt_eio.run_lwt @@ fun () -> Builder.build builder context ospec
             with
             | Ok id ->
+                let now = Unix.gmtime (Unix.gettimeofday ()) in
+                Db.add ~id ~now ast ospec db;
                 ( CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
                     ~command:cmdstr,
                   id,
