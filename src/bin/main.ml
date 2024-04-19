@@ -3,11 +3,7 @@ let ( / ) = Filename.concat
 module Sandbox = Obuilder.Native_sandbox
 module Store_spec = Obuilder.Store_spec
 
-let store_of_string = function
-  | `Rsync path -> `Rsync (path, Obuilder.Rsync_store.Copy)
-  | (`Zfs _ | `Btrfs _ | `Xfs _ | `Docker _) as v -> v
-
-let config_path =
+let _config_path =
   match Sys.getenv_opt "SHARK_CONFIG" with
   | Some config -> config
   | None -> (
@@ -15,13 +11,12 @@ let config_path =
       | Some home -> Filename.concat home ".shark"
       | None -> failwith "No SHARK_CONFIG or HOME environment variables")
 
-let store_or_default v =
-  match Option.map store_of_string v with
-  | Some store -> Obuilder.Store_spec.to_store store
-  | None ->
-      let config = In_channel.with_open_bin config_path In_channel.input_all in
-      let config = Shark.Config.t_of_sexp (Sexplib.Sexp.of_string config) in
-      Obuilder.Store_spec.to_store config.store
+(* TODO: Default store config is disabled for now *)
+let store_or_default = function store -> store
+(* | None ->
+    let config = In_channel.with_open_bin config_path In_channel.input_all in
+    let config = Shark.Config.t_of_sexp (Sexplib.Sexp.of_string config) in
+    Obuilder.Store_spec.to_store config.store *)
 
 let run_eventloop ~clock main =
   Lwt_eio.with_event_loop ~clock @@ fun _ -> main ()
@@ -198,7 +193,7 @@ let template ~clock ~fs () file directory =
   Ok ()
 
 let config () =
-  let config = Shark.Config.{ store = `Zfs "obuilder-zfs" } in
+  let config = Shark.Config.{ store = `Zfs (None, "obuilder-zfs", false) } in
   Fmt.pr "%a" Sexplib.Sexp.pp_hum (Shark.Config.sexp_of_t config);
   Ok ()
 
@@ -246,11 +241,7 @@ let src_dir =
   @@ Arg.info ~doc:"Directory containing the source files." ~docv:"SRC_DIR"
        [ "src_dir" ]
 
-let store =
-  Arg.value
-  @@ Arg.opt Arg.(some Store_spec.store_t) None
-  @@ Arg.info ~doc:"Store for shark, defaults to configuration file."
-       ~docv:"STORE" [ "store" ]
+let store = Store_spec.cmdliner
 
 let no_run =
   Arg.value @@ Arg.flag
