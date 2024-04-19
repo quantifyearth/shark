@@ -2,7 +2,7 @@
  (name main)
  (public_name shark)
  (libraries
-  eio_main
+  eio_posix
   shark
   shark.server
   lwt.unix

@@ -47,7 +47,7 @@ file in your home directory under `~/.shark`. A default is provided from the com
 
 ```sh
 $ shark config
-((store (Zfs obuilder-zfs)))
+((store (Zfs (() obuilder-zfs false))))
 ```
 
 ## Markdown Support 
