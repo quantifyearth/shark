@@ -27,6 +27,7 @@ val process_build_block :
   Cmarkit.Block.Code_block.t * Block.t
 
 val process_run_block :
+  ?env_override:(string * string) list ->
   fs:_ Eio.Path.t ->
   build_cache:Build_cache.t ->
   pool:unit Eio.Pool.t ->
