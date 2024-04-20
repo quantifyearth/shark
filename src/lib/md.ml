@@ -129,7 +129,7 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
       in
       List.map find_files_in_store outputs
 
-let process_run_block ~fs ~build_cache ~pool store ast
+let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
     (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
   match Block.kind block with
@@ -192,8 +192,14 @@ let process_run_block ~fs ~build_cache ~pool store ast
               String.concat (List.tl (Command.raw_args command))
               |> String.cuts ~sep:"="
             in
-            let key = List.nth parts 0 and value = List.nth parts 1 in
-            ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
+            let key = List.nth parts 0 and default_value = List.nth parts 1 in
+            let value =
+              match List.assoc_opt key env_override with
+              | None -> default_value
+              | Some v -> v
+            in
+            ( CommandResult.v ~build_hash ~output:""
+                ~command:(Fmt.str "export %s=%s" key value),
               build_hash,
               pwd,
               (key, value) :: List.remove_assoc key env )
