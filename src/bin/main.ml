@@ -211,7 +211,7 @@ let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
   Logs.Src.set_level Obuilder.log_src level;
-  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_reporter (Logging.reporter (Mtime_clock.counter ()) Fmt.stdout);
   ()
 
 let setup_log =

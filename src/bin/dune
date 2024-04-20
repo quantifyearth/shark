@@ -4,6 +4,7 @@
  (libraries
   eio_posix
   shark
+  mtime.clock
   shark.server
   lwt.unix
   obuilder
