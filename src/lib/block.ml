@@ -73,7 +73,7 @@ let alias = function
   | `Run b | `Build b -> b.alias
 
 let hash = function
-  | `Publish _ -> invalid_arg "Expected body or run"
+  | `Publish _ -> None
   | `Run b | `Build b -> b.hash
 
 let kind = function
