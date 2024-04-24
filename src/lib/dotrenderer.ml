@@ -71,13 +71,23 @@ let render_ast_to_dot ppf hyperblocks : unit =
       Format.fprintf ppf "\tstyle = %s\n" style;
       Format.fprintf ppf "\tlabel = \"%s\"\n" name;
 
+      (* if commands have no obvious I/O remove them from the dot graph for now *)
+      let filtered_commands =
+        List.filter
+          (fun l ->
+            let ic = List.length (Leaf.inputs l)
+            and oc = List.length (Leaf.outputs l) in
+            ic + oc > 0)
+          commands
+      in
+
       let renderer =
         match kind with
         | `Run -> render_command_to_dot
         | `Publish -> render_publish_to_dot
         | _ -> fun _a _b -> ()
       in
-      List.iter (renderer ppf) commands;
+      List.iter (renderer ppf) filtered_commands;
 
       Format.fprintf ppf "}\n")
     hyperblocks;
