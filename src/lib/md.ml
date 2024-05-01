@@ -124,7 +124,10 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
                 (fun (path : string) ->
                   match path with
                   | "." | ".." -> None
-                  | p -> Some (Fpath.add_seg shark_destination_path p))
+                  | p -> (
+                      match Filename.extension p with
+                      | ".shark" -> None
+                      | _ -> Some (Fpath.add_seg shark_destination_path p)))
                 files )
       in
       List.map find_files_in_store outputs
