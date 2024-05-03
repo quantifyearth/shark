@@ -80,6 +80,7 @@ let build ~fs ~net ~domain_mgr () store spec conf src_dir secrets fetcher =
       Ok ()
   | Error `Cancelled -> Error "Cancelled at user's request"
   | Error (`Msg m) -> Error (Fmt.str "Build step failed: %s" m)
+  | Error (`Failed (id, m)) -> Error (Fmt.str "Build %s failed: %s" id m)
 
 let run ~fs ~net ~domain_mgr () store conf id fetcher =
   run_eventloop @@ fun () ->
@@ -139,14 +140,14 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
   let pool = Eio.Pool.create jobs (fun () -> ()) in
   let store = Lwt_eio.run_lwt @@ fun () -> store in
   let f ~build_cache code_block block =
-    if no_run then code_block
+    if no_run then (code_block, `Continue)
     else
       match Shark.Block.kind block with
       | `Publish ->
           let cb, _blk =
             Shark.Md.process_publish_block store ast (code_block, block)
           in
-          cb
+          (cb, `Continue)
       | `Build ->
           let _alias, _id, cb =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
@@ -156,21 +157,31 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
             in
             (Shark.Block.alias blk, Option.get (Shark.Block.hash blk), cb)
           in
-          cb
+          (cb, `Continue)
       | `Run ->
-          let cb, _result_block =
+          let cb, _result_block, stop =
             Shark.Md.process_run_block ~env_override ~fs ~build_cache ~pool
               store ast obuilder (code_block, block)
           in
-          cb
+          (cb, stop)
   in
 
-  let document = Shark.Md.map_blocks doc ~f in
-
+  let document, stopped = Shark.Md.map_blocks doc ~f in
+  let doc_string = Cmarkit_commonmark.of_doc document in
   Eio.Switch.run @@ fun sw ->
-  let run_server () =
+  let run () =
     match port with
-    | None -> Fmt.pr "%s" (Cmarkit_commonmark.of_doc document)
+    | None -> (
+        match stopped with
+        | Some reason ->
+            Fmt.epr "%a\n%s"
+              Fmt.(styled (`Fg `Red) string)
+              ("BUILD FAILED: " ^ reason)
+              doc_string;
+            Error "Build failed"
+        | None ->
+            Fmt.pr "%s" doc_string;
+            Ok ())
     | Some port ->
         let output_path = Eio.Path.(fs / Filename.temp_file "shark-md" "run") in
         Eio.Path.save ~create:(`If_missing 0o644) output_path
@@ -182,8 +193,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
         and server = Cohttp_eio.Server.make ~callback:handler () in
         Cohttp_eio.Server.run socket server ~on_error:log_warning
   in
-  run_server ();
-  Ok ()
+  run ()
 
 let template ~clock ~fs () file directory =
   run_eventloop ~clock @@ fun () ->
