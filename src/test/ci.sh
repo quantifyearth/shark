@@ -31,8 +31,16 @@ case "$1" in
 		else
 			echo "Successfully Failed"
 		fi
-
-        sudo rm -rf /rsync
+        
+		# We run the failed build twice to check the failure logic.
+		# It should find the failed build, delete it and then fail again.
+		if sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.failure.md --store=rsync:/rsync --rsync-mode=hardlink --verbose; then
+			exit 1
+		else
+			echo "Successfully Failed"
+		fi
+        
+		sudo rm -rf /rsync
         ;;
     *)
         printf "Usage: main.sh [zfs|rsync_copy]" >&2
