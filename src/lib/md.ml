@@ -12,6 +12,8 @@ module CommandResult = struct
   let command r = r.command
 end
 
+type action = Stop of [ `Failure of string | `Map ] | Continue
+
 let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let build_cache = Build_cache.v () in
   let stop_processing = ref None in
@@ -24,8 +26,8 @@ let map_blocks (doc : Cmarkit.Doc.t) ~f =
           | Some block ->
               let new_block, continue = f ~build_cache node block in
               (match continue with
-              | `Continue -> ()
-              | `Stop reason -> stop_processing := Some reason);
+              | Continue -> ()
+              | Stop reason -> stop_processing := Some reason);
               `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
           | None -> `Default)
       | _ -> `Default
@@ -142,7 +144,7 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
 
 type processed_output = {
   cmd_result : CommandResult.t;
-  success : bool;
+  action : action;
   build_hash : Obuilder.S.id;
   workdir : string;
   env : (string * string) list;
@@ -207,7 +209,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             {
               cmd_result;
               build_hash;
-              success = true;
+              action = Continue;
               workdir = Fpath.to_string (List.nth (Command.file_args command) 0);
               env;
             }
@@ -232,7 +234,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             {
               cmd_result;
               build_hash;
-              success = true;
+              action = Continue;
               workdir;
               env = (key, value) :: List.remove_assoc key env;
             }
@@ -252,7 +254,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
                     CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
                       cmdstr;
                   build_hash = id;
-                  success = true;
+                  action = Continue;
                   workdir;
                   env;
                 }
@@ -264,7 +266,13 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
                     ~output:(msg ^ "\n" ^ Buffer.contents buf)
                     cmdstr
                 in
-                { cmd_result; success = false; build_hash; workdir; env })
+                {
+                  cmd_result;
+                  action = Stop (`Failure msg);
+                  build_hash;
+                  workdir;
+                  env;
+                })
       in
       let outer_process acc leaf =
         let inputs = Leaf.inputs leaf in
@@ -340,16 +348,12 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
       (* TODO: We should be able to continue procressing other blocks if only one fails
          here, but I would like to restructure the code to support this better and have
          ideas for that. For now, a single failure here will stop the procressing. *)
-      let stop = List.find_opt (fun { success; _ } -> not success) last in
-      let action =
-        match stop with
-        | None -> `Continue
-        | Some r -> (
-            match r.cmd_result.output with
-            | Some o -> `Stop o
-            | None -> `Stop "No output")
+      let stop =
+        List.find_opt
+          (function { action = Stop (`Failure _); _ } -> true | _ -> false)
+          last
       in
-
+      let action = match stop with None -> Continue | Some r -> r.action in
       (Cmarkit.Block.Code_block.make ~info_string body, block, action)
   | _ -> failwith "expected run"
 

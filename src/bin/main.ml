@@ -140,14 +140,14 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
   let pool = Eio.Pool.create jobs (fun () -> ()) in
   let store = Lwt_eio.run_lwt @@ fun () -> store in
   let f ~build_cache code_block block =
-    if no_run then (code_block, `Continue)
+    if no_run then (code_block, Shark.Md.Continue)
     else
       match Shark.Block.kind block with
       | `Publish ->
           let cb, _blk =
             Shark.Md.process_publish_block store ast (code_block, block)
           in
-          (cb, `Continue)
+          (cb, Continue)
       | `Build ->
           let _alias, _id, cb =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
@@ -157,7 +157,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
             in
             (Shark.Block.alias blk, Option.get (Shark.Block.hash blk), cb)
           in
-          (cb, `Continue)
+          (cb, Continue)
       | `Run ->
           let cb, _result_block, stop =
             Shark.Md.process_run_block ~env_override ~fs ~build_cache ~pool
@@ -173,12 +173,13 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
     match port with
     | None -> (
         match stopped with
-        | Some reason ->
+        | Some (`Failure reason) ->
             Fmt.epr "%a\n%s"
               Fmt.(styled (`Fg `Red) string)
               ("BUILD FAILED: " ^ reason)
               doc_string;
             Error "Build failed"
+        | Some `Map -> failwith "TODO"
         | None ->
             Fmt.pr "%s" doc_string;
             Ok ())
