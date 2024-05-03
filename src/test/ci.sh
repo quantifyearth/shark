@@ -24,8 +24,23 @@ case "$1" in
         sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.md --store=rsync:/rsync --rsync-mode=hardlink --verbose
         
         cat ./_shark/gdal.version
-
-        sudo rm -rf /rsync
+        
+		# Expect a failure but with output.
+		if sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.failure.md --store=rsync:/rsync --rsync-mode=hardlink; then
+			exit 1
+		else
+			echo "Successfully Failed"
+		fi
+        
+		# We run the failed build twice to check the failure logic.
+		# It should find the failed build, delete it and then fail again.
+		if sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.failure.md --store=rsync:/rsync --rsync-mode=hardlink --verbose; then
+			exit 1
+		else
+			echo "Successfully Failed"
+		fi
+        
+		sudo rm -rf /rsync
         ;;
     *)
         printf "Usage: main.sh [zfs|rsync_copy]" >&2

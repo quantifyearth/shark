@@ -4,9 +4,9 @@ open Eio
 let ( / ) = Eio.Path.( / )
 
 module CommandResult = struct
-  type t = { build_hash : string; output : string; command : string }
+  type t = { build_hash : string; output : string option; command : string }
 
-  let v ~build_hash ~output ~command = { build_hash; output; command }
+  let v ?output ~build_hash command = { build_hash; output; command }
   let _build_hash r = r.build_hash
   let output r = r.output
   let command r = r.command
@@ -14,17 +14,25 @@ end
 
 let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let build_cache = Build_cache.v () in
-  let block _mapper = function
-    | Cmarkit.Block.Code_block (node, meta) -> (
-        match Block.of_code_block node with
-        | Some block ->
-            let new_block = f ~build_cache node block in
-            `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
-        | None -> `Default)
-    | _ -> `Default
+  let stop_processing = ref None in
+  let block _mapper v =
+    if Option.is_some !stop_processing then `Default
+    else
+      match v with
+      | Cmarkit.Block.Code_block (node, meta) -> (
+          match Block.of_code_block node with
+          | Some block ->
+              let new_block, continue = f ~build_cache node block in
+              (match continue with
+              | `Continue -> ()
+              | `Stop reason -> stop_processing := Some reason);
+              `Map (Some (Cmarkit.Block.Code_block (new_block, meta)))
+          | None -> `Default)
+      | _ -> `Default
   in
   let mapper = Cmarkit.Mapper.make ~block () in
-  Cmarkit.Mapper.map_doc mapper doc
+  let doc = Cmarkit.Mapper.map_doc mapper doc in
+  (doc, !stop_processing)
 
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
@@ -54,7 +62,7 @@ let process_build_block ?(src_dir = ".") (Builder ((module Builder), builder))
       match Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec with
       | Error `Cancelled -> failwith "Cancelled by user"
       | Error (`Msg m) -> failwith m
-      | Ok id ->
+      | Ok id | Error (`Failed (id, _)) ->
           let block_with_hash = Block.with_hash block id in
           (* Update hyperblock hash *)
           let hb = Ast.find_hyperblock_from_block ast block |> Option.get in
@@ -132,6 +140,14 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
       in
       List.map find_files_in_store outputs
 
+type processed_output = {
+  cmd_result : CommandResult.t;
+  success : bool;
+  build_hash : Obuilder.S.id;
+  workdir : string;
+  env : (string * string) list;
+}
+
 let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
     (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
@@ -168,68 +184,88 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           (Leaf.outputs l)
       in
 
-      let spec build_hash pwd environment leaf cmdstr =
-        let open Obuilder_spec in
-        stage ~from:(`Build build_hash)
-          ([ user_unix ~uid:0 ~gid:0; workdir pwd ]
-          @ List.map (fun (k, v) -> env k v) environment
+      let spec ~build_hash ~workdir environment leaf cmdstr =
+        Obuilder_spec.stage ~from:(`Build build_hash)
+          ([
+             Obuilder_spec.user_unix ~uid:0 ~gid:0;
+             Obuilder_spec.workdir workdir;
+           ]
+          @ List.map (fun (k, v) -> Obuilder_spec.env k v) environment
           @ target_dirs leaf
           (* @ links *)
-          @ [ run ~network:[ "host" ] ~rom "%s" cmdstr ])
+          @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
-      let process pool (_outputs, build_hash, pwd, env) leaf cmdstr :
-          CommandResult.t * string * string * (string * string) list =
+      let process pool (_outputs, build_hash, workdir, env) leaf cmdstr =
         Eio.Pool.use pool @@ fun () ->
-        Logs.info (fun f ->
-            f "Running spec %a" Obuilder_spec.pp
-              (spec build_hash pwd env leaf cmdstr));
         let command = Leaf.command leaf in
+        Logs.debug (fun f -> f "Processing command: %a" Command.pp command);
         match Command.name command with
         | "cd" ->
-            ( CommandResult.v ~build_hash ~output:"" ~command:cmdstr,
-              build_hash,
-              Fpath.to_string (List.nth (Command.file_args command) 0),
-              env )
+            (* If a command block is a call to `cd` we treat this similarly to Docker's
+               WORKDIR command which changes the working directory of the context *)
+            let cmd_result = CommandResult.v ~build_hash cmdstr in
+            {
+              cmd_result;
+              build_hash;
+              success = true;
+              workdir = Fpath.to_string (List.nth (Command.file_args command) 0);
+              env;
+            }
         | "export" ->
-            let parts =
+            (* `export` is treated like ENV in Docker, only supporting a single key=value for now. *)
+            let key, default_value =
               String.concat (List.tl (Command.raw_args command))
-              |> String.cuts ~sep:"="
+              |> String.cut ~sep:"="
+              |> function
+              | Some (k, v) -> (k, v)
+              | None ->
+                  Fmt.failwith "Malformed export command: %a" Command.pp command
             in
-            let key = List.nth parts 0 and default_value = List.nth parts 1 in
             let value =
               match List.assoc_opt key env_override with
               | None -> default_value
               | Some v -> v
             in
-            ( CommandResult.v ~build_hash ~output:""
-                ~command:(Fmt.str "export %s=%s" key value),
-              build_hash,
-              pwd,
-              (key, value) :: List.remove_assoc key env )
+            let cmd_result =
+              CommandResult.v ~build_hash (Fmt.str "export %s=%s" key value)
+            in
+            {
+              cmd_result;
+              build_hash;
+              success = true;
+              workdir;
+              env = (key, value) :: List.remove_assoc key env;
+            }
         | _ -> (
+            (* Otherwise we run a command using obuilder *)
             let buf = Buffer.create 128 in
             let log = log `Run buf in
             let context = Obuilder.Context.v ~log ~src_dir:"." () in
+            let spec = spec ~build_hash ~workdir env leaf cmdstr in
+            Logs.info (fun f -> f "Running spec: %a" Obuilder_spec.pp spec);
             match
-              Lwt_eio.run_lwt @@ fun () ->
-              Builder.build builder context
-                (spec build_hash pwd env leaf cmdstr)
+              Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec
             with
             | Ok id ->
-                ( CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
-                    ~command:cmdstr,
-                  id,
-                  pwd,
-                  env )
+                {
+                  cmd_result =
+                    CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
+                      cmdstr;
+                  build_hash = id;
+                  success = true;
+                  workdir;
+                  env;
+                }
             | Error `Cancelled -> failwith "Cancelled by user"
-            | Error (`Msg _m) ->
-                ( CommandResult.v ~build_hash ~output:(Buffer.contents buf)
-                    ~command:cmdstr,
-                  build_hash,
-                  pwd,
-                  env ))
+            | Error (`Msg m) -> failwith m
+            | Error (`Failed (id, msg)) ->
+                let cmd_result =
+                  CommandResult.v ~build_hash:id
+                    ~output:(msg ^ "\n" ^ Buffer.contents buf)
+                    cmdstr
+                in
+                { cmd_result; success = false; build_hash; workdir; env })
       in
-
       let outer_process acc leaf =
         let inputs = Leaf.inputs leaf in
         let input_and_hashes =
@@ -269,22 +305,26 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             [] paths
         in
         let inputs = Leaf.to_string_for_inputs leaf l in
-        let l = Fiber.List.map (process pool acc leaf) inputs in
+        let processed_blocks = Fiber.List.map (process pool acc leaf) inputs in
         let results, _hash, _pwd, _env = acc in
-        let _, hash, pwd, env = List.hd l in
-        (l :: results, hash, pwd, env)
+        let { build_hash; workdir; env; _ } = List.hd processed_blocks in
+        (processed_blocks :: results, build_hash, workdir, env)
       in
 
       let ids_and_output_and_cmd, _hash, _pwd, _env =
         List.fold_left outer_process ([], build, "/root", []) commands
       in
       let last = List.hd ids_and_output_and_cmd in
-      let _, id, _, _ = List.hd last in
+      let { build_hash = id; _ } = List.hd last in
 
       let body =
         List.fold_left
-          (fun s (r, _, _, _) ->
-            s @ [ CommandResult.command r; CommandResult.output r ])
+          (fun s { cmd_result = r; _ } ->
+            s
+            @ [
+                CommandResult.command r;
+                (match CommandResult.output r with Some o -> o | None -> "");
+              ])
           []
           (List.concat (List.rev ids_and_output_and_cmd))
         |> List.filter (fun v -> not (String.equal "" v))
@@ -293,11 +333,24 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
       in
 
       List.iter
-        (fun (_, id, _, _) -> Ast.Hyperblock.update_hash hyperblock id)
+        (fun { build_hash = id; _ } -> Ast.Hyperblock.update_hash hyperblock id)
         last;
       let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
-      (Cmarkit.Block.Code_block.make ~info_string body, block)
+      (* TODO: We should be able to continue procressing other blocks if only one fails
+         here, but I would like to restructure the code to support this better and have
+         ideas for that. For now, a single failure here will stop the procressing. *)
+      let stop = List.find_opt (fun { success; _ } -> not success) last in
+      let action =
+        match stop with
+        | None -> `Continue
+        | Some r -> (
+            match r.cmd_result.output with
+            | Some o -> `Stop o
+            | None -> `Stop "No output")
+      in
+
+      (Cmarkit.Block.Code_block.make ~info_string body, block, action)
   | _ -> failwith "expected run"
 
 let copy ?chown ~src ~dst () =

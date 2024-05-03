@@ -9,12 +9,15 @@ val map_blocks :
     (build_cache:Build_cache.t ->
     Cmarkit.Block.Code_block.t ->
     Block.t ->
-    Cmarkit.Block.Code_block.t) ->
-  Cmarkit.Doc.t
+    Cmarkit.Block.Code_block.t * [ `Stop of string | `Continue ]) ->
+  Cmarkit.Doc.t * string option
 (** [map_blocks doc ~f] maps over the markdown document picking out shark {! Block.t}s.
     These are then past to [f]. [alias_hash_map] is a list of aliases to hashes (i.e. build
     hashes) that can be used to run blocks with the specific hash of a previous build coming
-    from another block. *)
+    from another block.
+
+    [f] can also halt further processing by returning [`Stop]. The option returned at the
+    end if [`Stop reason] was returned at any point is the [reason]. *)
 
 type builder =
   | Builder : (module Obuilder.BUILDER with type t = 'a) * 'a -> builder
@@ -35,7 +38,7 @@ val process_run_block :
   Ast.t ->
   builder ->
   Cmarkit.Block.Code_block.t * Block.t ->
-  Cmarkit.Block.Code_block.t * Block.t
+  Cmarkit.Block.Code_block.t * Block.t * [ `Stop of string | `Continue ]
 
 val process_publish_block :
   Obuilder.Store_spec.store ->
