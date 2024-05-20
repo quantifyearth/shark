@@ -1,7 +1,7 @@
 ---
 inputs:
-- /data/tmf/project_boundaries/123.geojson
-- /data/tmf/project_boundaries
+  boundary: /data/tmf/project_boundaries/123.geojson
+  projects: /data/tmf/project_boundaries
 ---
 # Running the pipeline
 
