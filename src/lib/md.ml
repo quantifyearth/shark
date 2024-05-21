@@ -208,10 +208,11 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
            ]
           @ List.map (fun (k, v) -> Obuilder_spec.env k v) environment
           @ target_dirs leaf
-          (* @ links *)
           @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
-      let process pool (_outputs, build_hash, workdir, env) leaf cmdstr =
+
+      let process pool (_outputs, build_hash, workdir, env) leaf file_subs_map
+          cmdstr =
         Eio.Pool.use pool @@ fun () ->
         let command = Leaf.command leaf in
         Logs.debug (fun f -> f "Processing command: %a" Command.pp command);
@@ -219,12 +220,24 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         | "cd" ->
             (* If a command block is a call to `cd` we treat this similarly to Docker's
                WORKDIR command which changes the working directory of the context *)
+
+            (* If the dir is in the inputs we should substitute it, otherwise we assume it's a new dir in this
+               current image. *)
+            let path =
+              Fpath.to_string (List.nth (Command.file_args command) 0)
+            in
+            let inspected_path =
+              match List.assoc_opt path file_subs_map with
+              | None -> path
+              | Some pl -> List.nth pl 0
+            in
+
             let cmd_result = CommandResult.v ~build_hash cmdstr in
             {
               cmd_result;
               build_hash;
               success = true;
-              workdir = Fpath.to_string (List.nth (Command.file_args command) 0);
+              workdir = inspected_path;
               env;
             }
         | "export" ->
@@ -321,7 +334,9 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             [] paths
         in
         let inputs = Leaf.to_string_for_inputs leaf l in
-        let processed_blocks = Fiber.List.map (process pool acc leaf) inputs in
+        let processed_blocks =
+          Fiber.List.map (process pool acc leaf l) inputs
+        in
         let results, _hash, _pwd, _env = acc in
         let { build_hash; workdir; env; _ } = List.hd processed_blocks in
         (processed_blocks :: results, build_hash, workdir, env)
