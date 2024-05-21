@@ -3,6 +3,8 @@ let ( / ) = Filename.concat
 module Sandbox = Obuilder.Native_sandbox
 module Store_spec = Obuilder.Store_spec
 
+let option_get ~msg = function Some v -> v | None -> failwith msg
+
 let _config_path =
   match Sys.getenv_opt "SHARK_CONFIG" with
   | Some config -> config
@@ -139,10 +141,48 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
 
   let pool = Eio.Pool.create jobs (fun () -> ()) in
   let store = Lwt_eio.run_lwt @@ fun () -> store in
+  (* TODO: provide this in map *)
+  let import_uid = ref 0 in
   let f ~build_cache code_block block =
     if no_run then (code_block, `Continue)
     else
       match Shark.Block.kind block with
+      | `Import ->
+          (* First we translate the import statement to a build block *)
+          let uid = string_of_int !import_uid in
+          incr import_uid;
+          let cb, blk = Shark.Md.translate_import_block ~uid block in
+          (* Now we build the block *)
+          (* Import block digests need to be mapped to this build hash *)
+          let hb =
+            match Shark.Ast.find_hyperblock_from_block ast block with
+            | Some hb -> hb
+            | None ->
+                Logs.info (fun f ->
+                    f "Failed to find the hyperblock for %a" Shark.Block.pp
+                      block);
+                failwith "Block not found"
+          in
+          let _alias, _id, cb =
+            Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
+            let cb, blk =
+              Shark.Md.process_build_block ~src_dir ~hb obuilder ast (cb, blk)
+            in
+            ( Shark.Block.alias blk,
+              option_get ~msg:"Block hash for import" (Shark.Block.hash blk),
+              cb )
+          in
+          (* And associate the import statement with the build block *)
+          (* image_hash_map :=
+               (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
+               :: !image_hash_map;
+             data_hash_map :=
+               ( Shark.Block.digest block,
+                 (* The import block statement *)
+                 Option.get (Shark.Block.hash blk) )
+               (* The build statement *)
+               :: !data_hash_map; *)
+          (cb, `Continue)
       | `Publish ->
           let cb, _blk =
             Shark.Md.process_publish_block store ast (code_block, block)
@@ -155,7 +195,9 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
               Shark.Md.process_build_block ~src_dir obuilder ast
                 (code_block, block)
             in
-            (Shark.Block.alias blk, Option.get (Shark.Block.hash blk), cb)
+            ( Shark.Block.alias blk,
+              option_get ~msg:"Block hash for build" (Shark.Block.hash blk),
+              cb )
           in
           (cb, `Continue)
       | `Run ->

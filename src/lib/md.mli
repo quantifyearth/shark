@@ -24,6 +24,7 @@ type builder =
 
 val process_build_block :
   ?src_dir:string ->
+  ?hb:Ast.Hyperblock.t ->
   builder ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
@@ -45,3 +46,6 @@ val process_publish_block :
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
   Cmarkit.Block.Code_block.t * Block.t
+
+val translate_import_block :
+  uid:string -> Block.t -> Cmarkit.Block.Code_block.t * Block.t

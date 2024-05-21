@@ -24,6 +24,9 @@ case "$1" in
         sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.md --store=rsync:/rsync --rsync-mode=hardlink --verbose
         
         cat ./_shark/gdal.version
+
+
+        sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/ocaml-test.md --store=rsync:/rsync --rsync-mode=hardlink --verbose
         
 		# Expect a failure but with output.
 		if sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md specs/shark.failure.md --store=rsync:/rsync --rsync-mode=hardlink; then

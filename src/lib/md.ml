@@ -1,5 +1,6 @@
 open Astring
 open Eio
+open Import
 
 let ( / ) = Eio.Path.( / )
 
@@ -49,8 +50,8 @@ let log kind buffer tag msg =
       match kind with `Build -> Buffer.add_string buffer msg | `Run -> ())
   | `Output -> Buffer.add_string buffer msg
 
-let process_build_block ?(src_dir = ".") (Builder ((module Builder), builder))
-    ast (code_block, block) =
+let process_build_block ?(src_dir = ".") ?hb
+    (Builder ((module Builder), builder)) ast (code_block, block) =
   match Block.kind block with
   | `Build -> (
       let spec =
@@ -65,7 +66,13 @@ let process_build_block ?(src_dir = ".") (Builder ((module Builder), builder))
       | Ok id | Error (`Failed (id, _)) ->
           let block_with_hash = Block.with_hash block id in
           (* Update hyperblock hash *)
-          let hb = Ast.find_hyperblock_from_block ast block |> Option.get in
+          let hb =
+            match hb with
+            | Some hb -> hb
+            | None ->
+                Ast.find_hyperblock_from_block ast block
+                |> Option.get ~err:"No hyperblock for build block"
+          in
           Ast.Hyperblock.update_hash hb id;
           let new_code_block =
             let info_string = Block.to_info_string block in
@@ -77,13 +84,18 @@ let process_build_block ?(src_dir = ".") (Builder ((module Builder), builder))
   | _ -> failwith "expected build"
 
 let input_hashes ast block =
-  let block_id = Option.get (Ast.find_id_of_block ast block) in
+  let block_id =
+    Option.get ~err:"No block ID for input hashes"
+      (Ast.find_id_of_block ast block)
+  in
   let block_dependencies = Ast.find_dependencies ast block_id in
 
   (* The input Datafile has the wildcard flag, which won't be set on the
      output flag, so we need to swap them over *)
   let input_map =
-    Ast.Hyperblock.io (Option.get (Ast.block_by_id ast block_id))
+    Ast.Hyperblock.io
+      (Option.get ~err:"No block ID for input map"
+         (Ast.block_by_id ast block_id))
     |> fst
     |> List.map (fun df -> (Datafile.id df, df))
   in
@@ -112,12 +124,13 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
         let root = Fpath.v "/" in
         let absolute_path =
           Fpath.relativize ~root container_path
-          |> Option.get |> Fpath.append rootfs |> Fpath.to_string
+          |> Option.get ~err:"Relativizing paths"
+          |> Fpath.append rootfs |> Fpath.to_string
         in
         let shark_destination_path =
           let root = Fpath.v "/data/" in
           Fpath.relativize ~root container_path
-          |> Option.get
+          |> Option.get ~err:"Relativizing paths"
           |> Fpath.append shark_mount_path
         in
         match Datafile.is_wildcard file with
@@ -150,7 +163,10 @@ type processed_output = {
 
 let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
     (Builder ((module Builder), builder)) (_code_block, block) =
-  let hyperblock = Ast.find_hyperblock_from_block ast block |> Option.get in
+  let hyperblock =
+    Ast.find_hyperblock_from_block ast block
+    |> Option.get ~err:"No hyperblock for run block"
+  in
   match Block.kind block with
   | `Run ->
       let commands = Ast.Hyperblock.commands hyperblock in
@@ -382,7 +398,8 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
           | Some f -> (
               let root = Fpath.v "/" in
               let path =
-                Datafile.path file |> Fpath.relativize ~root |> Option.get
+                Datafile.path file |> Fpath.relativize ~root
+                |> Option.get ~err:"Relativizing paths"
                 |> Fpath.to_string
               in
               let src = Filename.concat (Filename.concat f "rootfs") path in
@@ -401,3 +418,31 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       (Cmarkit.Block.Code_block.make ~info_string outputs, block)
   | _ -> failwith "Expected Publish Block"
+
+let translate_import_block ~uid block =
+  match Block.kind block with
+  | `Import ->
+      (* TODO: Support multi-import statements *)
+      let git_url, git_path = Block.imports block |> List.hd in
+      (* We just need to get the data into the OBuilder store -- HACK *)
+      let spec =
+        let open Obuilder_spec in
+        (* Choose better image, just need tools to import? *)
+        stage ~from:(`Image "alpine")
+          [
+            shell [ "/bin/sh"; "-c" ];
+            run ~network:[ "host" ] "apk add --no-cache git";
+            run ~network:[ "host" ] "mkdir -p /data && git clone %s %s" git_url
+              git_path;
+          ]
+      in
+      let body = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
+      let alias = Fmt.str "import-statement-%s" uid in
+      let block = Block.build_or_run ~alias ~body `Build in
+      let code_block =
+        Cmarkit.Block.Code_block.make
+          ~info_string:(Fmt.str "shark-build:%s" alias, Cmarkit.Meta.none)
+          (Cmarkit.Block_line.list_of_string body)
+      in
+      (code_block, block)
+  | _ -> failwith "Expected Import Block"
