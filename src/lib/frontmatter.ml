@@ -65,3 +65,4 @@ let of_toplevel_yaml = function
 let of_string s = String.trim s |> Yaml.of_string |> Result.map of_toplevel_yaml
 let variables t = t.variables
 let inputs t = List.map (fun (_, v) -> v) t.inputs
+let input_map t = t.inputs

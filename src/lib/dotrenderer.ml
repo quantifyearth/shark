@@ -40,6 +40,27 @@ let render_publish_to_dot ppf command =
         (Datafile.id datafile) process_index label)
     (Leaf.inputs command)
 
+let render_import_to_dot ppf command = 
+  let process_index = Leaf.id command in
+  List.iter
+    (fun datafile ->
+      let label =
+        match Datafile.subpath datafile with
+        | Some x -> Fmt.str ",label=\"%s\"" x
+        | None -> ""
+      in
+      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"%s];\n"
+        (Datafile.id datafile) process_index label)
+    (Leaf.inputs command);
+  Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n" process_index
+    (Uri.pct_encode (Command.name (Leaf.command command)));
+  List.iter
+    (fun datafile ->
+      Format.fprintf ppf "\tn%d->n%d[penwidth=\"2.0\"];\n" process_index
+        (Datafile.id datafile))
+    (Leaf.outputs command);
+  Format.fprintf ppf "\n"
+
 let datafile_to_dot ppf datafile =
   Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n"
     (Datafile.id datafile)
@@ -83,6 +104,7 @@ let render_ast_to_dot ppf hyperblocks : unit =
 
       let renderer =
         match kind with
+        | `Import -> render_import_to_dot
         | `Run -> render_command_to_dot
         | `Publish -> render_publish_to_dot
         | _ -> fun _a _b -> ()
@@ -94,7 +116,8 @@ let render_ast_to_dot ppf hyperblocks : unit =
   Format.fprintf ppf "}\n"
 
 let render ~template_markdown =
-  Ast.of_sharkdown ~template_markdown
+  Ast.of_sharkdown template_markdown
+  |> fst
   |> Ast.to_list
   |> render_ast_to_dot Format.str_formatter;
-  Format.flush_str_formatter ()
+  Format.flush_str_formatter () 

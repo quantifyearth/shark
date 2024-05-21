@@ -30,7 +30,7 @@ type t [@@deriving sexp]
 (** An AST instance *)
 
 val pp : t Fmt.t
-val of_sharkdown : template_markdown:string -> t
+val of_sharkdown : ?concrete_paths:(string * Fpath.t) list -> string -> t * string
 val find_id_of_block : t -> Block.t -> block_id option
 val block_by_id : t -> block_id -> Hyperblock.t option
 val find_hyperblock_from_block : t -> Block.t -> Hyperblock.t option

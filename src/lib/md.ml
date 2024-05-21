@@ -215,7 +215,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           cmdstr =
         Eio.Pool.use pool @@ fun () ->
         let command = Leaf.command leaf in
-        Logs.debug (fun f -> f "Processing command: %a" Command.pp command);
+        Logs.info (fun f -> f "Processing command: %a" Command.pp command);
         match Command.name command with
         | "cd" ->
             (* If a command block is a call to `cd` we treat this similarly to Docker's
@@ -223,13 +223,22 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
 
             (* If the dir is in the inputs we should substitute it, otherwise we assume it's a new dir in this
                current image. *)
-            let path =
-              Fpath.to_string (List.nth (Command.file_args command) 0)
-            in
-            let inspected_path =
-              match List.assoc_opt path file_subs_map with
-              | None -> path
-              | Some pl -> List.nth pl 0
+            let args = Command.file_args command in
+            let inspected_path = match (List.length args) with
+            | 0 -> (
+              (* no /data path in this, so just pull the path directly as the AST only works with /data paths *)
+              String.cut ~sep:" " (Command.to_string command) |> Option.get ~err:"Failed to get path in cd" |> snd
+            )
+            | _ -> (
+              let path = Fpath.to_string (List.nth args 0) in
+                match List.assoc_opt path file_subs_map with
+                | None -> path
+                | Some pl -> (
+                  match List.length pl with
+                  | 0 -> path
+                  | _ -> List.nth pl 0
+                )
+            )
             in
 
             let cmd_result = CommandResult.v ~build_hash cmdstr in
@@ -437,7 +446,8 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
 let translate_import_block ~uid block =
   match Block.kind block with
   | `Import ->
-      let spec = Block.import_spec block in
+      let spec, src_dir_opt = Block.import_spec block in
+      Logs.info (fun f -> f "import spec: %a" Obuilder_spec.pp spec);
       let body = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
       let alias = Fmt.str "import-statement-%s" uid in
       let block = Block.build_or_run ~alias ~body `Build in
@@ -446,5 +456,5 @@ let translate_import_block ~uid block =
           ~info_string:(Fmt.str "shark-build:%s" alias, Cmarkit.Meta.none)
           (Cmarkit.Block_line.list_of_string body)
       in
-      (code_block, block)
+      (code_block, block), src_dir_opt
   | _ -> failwith "Expected Import Block"

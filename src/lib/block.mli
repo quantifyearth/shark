@@ -72,4 +72,6 @@ val imports : t -> (Uri.t * Fpath.t) list
 (** The imports from an import block i.e. a list of [URL, Path] pairs. *)
 
 val digest : t -> string
-val import_spec : t -> Obuilder_spec.t
+
+val import_spec : t -> Obuilder_spec.t * string option
+(** For a shark-import block generate the spec to execute to enact the import. *)
