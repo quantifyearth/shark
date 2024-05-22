@@ -138,7 +138,11 @@ let imports = function
   | Import { body; _ } ->
       let cut_import s =
         match String.cut ~sep:" " s with
-        | Some (url, path) -> (url, path)
+        | Some (url, path) -> (
+            match Fpath.of_string path with
+            | Ok path -> (Uri.of_string url, path)
+            | Error (`Msg msg) ->
+                Fmt.failwith "Error parsing path %s: %s" path msg)
         | None -> Fmt.failwith "Invalid import statement %s" s
       in
       let imports = String.cuts ~sep:"\n" body in
@@ -150,3 +154,38 @@ let digest : t -> string = function
   | Run { body; _ }
   | Build { body; _ } ->
       Digest.string body
+
+let import_spec b =
+  let open Obuilder_spec in
+  (* TODO: Support multi-import statements *)
+  let url, path = imports b |> List.hd in
+  match Uri.scheme url with
+  | None | Some "file" ->
+      (* Choose better image, just need tools to import? *)
+      stage ~from:(`Image "alpine")
+        [
+          run "mkdir -p %s" (Fpath.to_string (Fpath.parent path));
+          copy [ Uri.path url ] ~dst:(Fpath.to_string path);
+        ]
+  | Some "http" | Some "https" -> (
+      let src_path = Uri.path url in
+      match String.cut ~rev:true ~sep:"." src_path with
+      | Some (_, "git") ->
+          (* Choose better image, just need tools to import? *)
+          stage ~from:(`Image "alpine")
+            [
+              shell [ "/bin/sh"; "-c" ];
+              run ~network:[ "host" ] "apk add --no-cache git";
+              run ~network:[ "host" ] "mkdir -p /data && git clone %s %s"
+                (Uri.to_string url) (Fpath.to_string path);
+            ]
+      | _ ->
+          (* Choose better image, just need tools to import? *)
+          stage ~from:(`Image "alpine")
+            [
+              shell [ "/bin/sh"; "-c" ];
+              run ~network:[ "host" ] "apk add --no-cache curl";
+              run ~network:[ "host" ] "mkdir -p /data && curl -O %s %s"
+                (Fpath.to_string path) (Uri.to_string url);
+            ])
+  | Some scheme -> Fmt.failwith "Unsupported import scheme %s" scheme

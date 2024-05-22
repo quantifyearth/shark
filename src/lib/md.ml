@@ -437,20 +437,7 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
 let translate_import_block ~uid block =
   match Block.kind block with
   | `Import ->
-      (* TODO: Support multi-import statements *)
-      let git_url, git_path = Block.imports block |> List.hd in
-      (* We just need to get the data into the OBuilder store -- HACK *)
-      let spec =
-        let open Obuilder_spec in
-        (* Choose better image, just need tools to import? *)
-        stage ~from:(`Image "alpine")
-          [
-            shell [ "/bin/sh"; "-c" ];
-            run ~network:[ "host" ] "apk add --no-cache git";
-            run ~network:[ "host" ] "mkdir -p /data && git clone %s %s" git_url
-              git_path;
-          ]
-      in
+      let spec = Block.import_spec block in
       let body = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
       let alias = Fmt.str "import-statement-%s" uid in
       let block = Block.build_or_run ~alias ~body `Build in

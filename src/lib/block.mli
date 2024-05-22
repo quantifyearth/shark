@@ -68,7 +68,8 @@ val body : t -> string
 val output : t -> [ `Directory of string ]
 (** The output of a publish block *)
 
-val imports : t -> (string * string) list
+val imports : t -> (Uri.t * Fpath.t) list
 (** The imports from an import block i.e. a list of [URL, Path] pairs. *)
 
 val digest : t -> string
+val import_spec : t -> Obuilder_spec.t
