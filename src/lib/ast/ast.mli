@@ -5,7 +5,7 @@ sharkdown file, including the structure of groups (aka basic blocks
 in PL, but block is an overloaded term in this context). *)
 
 module Hyperblock : sig
-  type t
+  type t [@@deriving sexp]
 
   val block : t -> Block.t
   val hash : t -> string option

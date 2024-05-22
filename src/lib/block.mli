@@ -22,6 +22,9 @@ val build_or_run :
 val publish : ?output:[ `Directory of string ] -> string -> t
 (** A publish block with a body. Default output is [`Directory "./_shark"] *)
 
+val import : ?hash:string -> ?alias:string -> string -> t
+(** A shark import statement with a body *)
+
 val pp : t Fmt.t
 (** A pretty printer for blocks. *)
 
@@ -56,11 +59,16 @@ val alias : t -> string
 val hash : t -> string option
 (** If a block has been run it will hash a build hash *)
 
-val kind : t -> [ `Run | `Build | `Publish ]
+val kind : t -> [ `Run | `Build | `Publish | `Import ]
 (** The kind of block *)
 
 val body : t -> string
 (** The body of the block *)
 
 val output : t -> [ `Directory of string ]
+(** The output of a publish block *)
+
+val imports : t -> (string * string) list
+(** The imports from an import block i.e. a list of [URL, Path] pairs. *)
+
 val digest : t -> string
