@@ -40,7 +40,7 @@ let render_publish_to_dot ppf command =
         (Datafile.id datafile) process_index label)
     (Leaf.inputs command)
 
-let render_import_to_dot ppf command = 
+let render_import_to_dot ppf command =
   let process_index = Leaf.id command in
   List.iter
     (fun datafile ->
@@ -117,7 +117,6 @@ let render_ast_to_dot ppf hyperblocks : unit =
 
 let render ~template_markdown =
   Ast.of_sharkdown template_markdown
-  |> fst
-  |> Ast.to_list
+  |> fst |> Ast.to_list
   |> render_ast_to_dot Format.str_formatter;
-  Format.flush_str_formatter () 
+  Format.flush_str_formatter ()

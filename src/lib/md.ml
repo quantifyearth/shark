@@ -224,21 +224,19 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             (* If the dir is in the inputs we should substitute it, otherwise we assume it's a new dir in this
                current image. *)
             let args = Command.file_args command in
-            let inspected_path = match (List.length args) with
-            | 0 -> (
-              (* no /data path in this, so just pull the path directly as the AST only works with /data paths *)
-              String.cut ~sep:" " (Command.to_string command) |> Option.get ~err:"Failed to get path in cd" |> snd
-            )
-            | _ -> (
-              let path = Fpath.to_string (List.nth args 0) in
-                match List.assoc_opt path file_subs_map with
-                | None -> path
-                | Some pl -> (
-                  match List.length pl with
-                  | 0 -> path
-                  | _ -> List.nth pl 0
-                )
-            )
+            let inspected_path =
+              match List.length args with
+              | 0 ->
+                  (* no /data path in this, so just pull the path directly as the AST only works with /data paths *)
+                  String.cut ~sep:" " (Command.to_string command)
+                  |> Option.get ~err:"Failed to get path in cd"
+                  |> snd
+              | _ -> (
+                  let path = Fpath.to_string (List.nth args 0) in
+                  match List.assoc_opt path file_subs_map with
+                  | None -> path
+                  | Some pl -> (
+                      match List.length pl with 0 -> path | _ -> List.nth pl 0))
             in
 
             let cmd_result = CommandResult.v ~build_hash cmdstr in
@@ -456,5 +454,5 @@ let translate_import_block ~uid block =
           ~info_string:(Fmt.str "shark-build:%s" alias, Cmarkit.Meta.none)
           (Cmarkit.Block_line.list_of_string body)
       in
-      (code_block, block), src_dir_opt
+      ((code_block, block), src_dir_opt)
   | _ -> failwith "Expected Import Block"
