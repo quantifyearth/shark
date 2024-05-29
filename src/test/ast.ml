@@ -8,7 +8,7 @@ $ python3 something.py /data/something.txt
 ```
   |}
   in
-  let test = Shark.Ast.of_sharkdown ~template_markdown in
+  let test, _ = Shark.Ast.of_sharkdown template_markdown in
   let hyperblocks = Shark.Ast.to_list test in
   Alcotest.(check int)
     "Single command group expected" 1 (List.length hyperblocks);
@@ -24,7 +24,7 @@ $ python3 else.py /data/something.txt
 ```
   |}
   in
-  let test = Shark.Ast.of_sharkdown ~template_markdown in
+  let test, _ = Shark.Ast.of_sharkdown template_markdown in
   let hyperblocks = Shark.Ast.to_list test in
   Alcotest.(check int)
     "Single command group expected" 1 (List.length hyperblocks);
@@ -39,7 +39,7 @@ $ python3 something.py
 ```
   |}
   in
-  let test = Shark.Ast.of_sharkdown ~template_markdown in
+  let test, _ = Shark.Ast.of_sharkdown template_markdown in
   let hyperblocks = Shark.Ast.to_list test in
   Alcotest.(check int)
     "Single command group expected" 1 (List.length hyperblocks);

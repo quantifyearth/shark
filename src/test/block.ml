@@ -40,6 +40,86 @@ let test_shark_run_multiline_command () =
   let test = Shark.Block.command_list block in
   Alcotest.(check (list string)) "Single command" expect test
 
+let test_git_import_block () =
+  let body =
+    "https://example.com/quantifyearth/littlejohn.git /data/littlejohn"
+  in
+  let block = Shark.Block.import body in
+  let expected =
+    [ ("https://example.com/quantifyearth/littlejohn.git", "/data/littlejohn") ]
+  in
+  let test =
+    List.map
+      (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
+      (Shark.Block.imports block)
+  in
+  Alcotest.(check (list (pair string string))) "Single import" expected test;
+
+  let spec, src_dir = Shark.Block.import_spec block in
+  let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
+  Alcotest.(check bool)
+    "Found git command" true
+    (Astring.String.is_infix ~affix:"git clone" specbody);
+  Alcotest.(check (option string)) "No src_dir change" None src_dir
+
+let test_http_import_block () =
+  let body = "https://example.com/data/something.csv /data/src.csv" in
+  let block = Shark.Block.import body in
+  let expected =
+    [ ("https://example.com/data/something.csv", "/data/src.csv") ]
+  in
+  let test =
+    List.map
+      (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
+      (Shark.Block.imports block)
+  in
+  Alcotest.(check (list (pair string string))) "Single import" expected test;
+
+  let spec, src_dir = Shark.Block.import_spec block in
+  let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
+  Alcotest.(check bool)
+    "Found git command" true
+    (Astring.String.is_infix ~affix:"curl -O" specbody);
+  Alcotest.(check (option string)) "No src_dir change" None src_dir
+
+let test_file_import_block_no_schema () =
+  let body = "/home/michael/file.csv /data/file.csv" in
+  let block = Shark.Block.import body in
+  let expected = [ ("/home/michael/file.csv", "/data/file.csv") ] in
+  let test =
+    List.map
+      (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
+      (Shark.Block.imports block)
+  in
+  Alcotest.(check (list (pair string string))) "Single import" expected test;
+
+  let spec, src_dir = Shark.Block.import_spec block in
+  let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
+  Alcotest.(check bool)
+    "Found git command" true
+    (Astring.String.is_infix ~affix:"copy" specbody);
+  Alcotest.(check (option string))
+    "Src_dir change" (Some "/home/michael") src_dir
+
+let test_file_import_block_with_schema () =
+  let body = "file:///home/michael/file.csv /data/file.csv" in
+  let block = Shark.Block.import body in
+  let expected = [ ("file:///home/michael/file.csv", "/data/file.csv") ] in
+  let test =
+    List.map
+      (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
+      (Shark.Block.imports block)
+  in
+  Alcotest.(check (list (pair string string))) "Single import" expected test;
+
+  let spec, src_dir = Shark.Block.import_spec block in
+  let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
+  Alcotest.(check bool)
+    "Found git command" true
+    (Astring.String.is_infix ~affix:"copy" specbody);
+  Alcotest.(check (option string))
+    "Src_dir change" (Some "/home/michael") src_dir
+
 let tests =
   [
     ("shark build block, no hash", `Quick, test_shark_build_block_no_hash);
@@ -48,4 +128,12 @@ let tests =
     ("shark run block", `Quick, test_shark_run_block_no_hash);
     ("parsing multiple commands", `Quick, test_shark_run_multiple_commands);
     ("parsing multiline command", `Quick, test_shark_run_multiline_command);
+    ("parsing basic git import", `Quick, test_git_import_block);
+    ("parsing basic http import", `Quick, test_http_import_block);
+    ( "parsing basic file import no schema",
+      `Quick,
+      test_file_import_block_no_schema );
+    ( "parsing basic file import with schema",
+      `Quick,
+      test_file_import_block_with_schema );
   ]

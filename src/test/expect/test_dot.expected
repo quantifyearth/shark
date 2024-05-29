@@ -1,93 +1,95 @@
 digraph{
 	n0[shape="cylinder",label="/data/tmf/project_boundaries/123.geojson"];
-	n1[shape="cylinder",label="/data/tmf/project_boundaries"];
-	n2[shape="cylinder",label="/data/tmf/jrc/zips"];
-	n3[shape="cylinder",label="/data/tmf/jrc/tif"];
-	n5[shape="cylinder",label="/data/tmf/fcc-cpcs"];
-	n7[shape="cylinder",label="/data/tmf/ecoregions/ecoregions.geojson"];
-	n9[shape="cylinder",label="/data/tmf/ecoregions"];
-	n11[shape="cylinder",label="/data/tmf/access/raw.tif"];
-	n13[shape="cylinder",label="/data/tmf/access"];
-	n15[shape="cylinder",label="/data/tmf/osm_borders.geojson"];
-	n17[shape="cylinder",label="/data/tmf/123/buffer.geojson"];
-	n19[shape="cylinder",label="/data/tmf/123/leakage.geojson"];
-	n21[shape="cylinder",label="/data/tmf/123/luc.tif"];
-	n23[shape="cylinder",label="/data/tmf/gedi"];
-	n26[shape="cylinder",label="/data/tmf/123/carbon-density.csv"];
-	n28[shape="cylinder",label="/data/tmf/123/country-list.json"];
-	n30[shape="cylinder",label="/data/tmf/123/matching-area.geojson"];
-	n32[shape="cylinder",label="/data/tmf/srtm/zip"];
-	n33[shape="cylinder",label="/data/tmf/srtm/tif"];
-	n35[shape="cylinder",label="/data/tmf/slopes"];
-	n37[shape="cylinder",label="/data/tmf/rescaled-elevation"];
-	n39[shape="cylinder",label="/data/tmf/rescaled-slopes"];
-	n41[shape="cylinder",label="/data/tmf/123/countries.tif"];
-	n43[shape="cylinder",label="/data/tmf/123/k.parquet"];
-	n45[shape="cylinder",label="/data/tmf/123/matches"];
-	n47[shape="cylinder",label="/data/tmf/123/matches.tif"];
-	n49[shape="cylinder",label="/data/tmf/123/matches.parquet"];
-	n51[shape="cylinder",label="/data/tmf/123/pairs"];
-	n53[shape="cylinder",label="/data/tmf/123/additionality.csv"];
+	n2[shape="cylinder",label="/data/tmf/project_boundaries"];
+	n4[shape="cylinder",label="/data/tmf/jrc/zips"];
+	n5[shape="cylinder",label="/data/tmf/jrc/tif"];
+	n7[shape="cylinder",label="/data/tmf/fcc-cpcs"];
+	n9[shape="cylinder",label="/data/tmf/ecoregions/ecoregions.geojson"];
+	n11[shape="cylinder",label="/data/tmf/ecoregions"];
+	n13[shape="cylinder",label="/data/tmf/access/raw.tif"];
+	n15[shape="cylinder",label="/data/tmf/access"];
+	n17[shape="cylinder",label="/data/tmf/osm_borders.geojson"];
+	n19[shape="cylinder",label="/data/tmf/123/buffer.geojson"];
+	n21[shape="cylinder",label="/data/tmf/123/leakage.geojson"];
+	n23[shape="cylinder",label="/data/tmf/123/luc.tif"];
+	n25[shape="cylinder",label="/data/tmf/gedi"];
+	n28[shape="cylinder",label="/data/tmf/123/carbon-density.csv"];
+	n30[shape="cylinder",label="/data/tmf/123/country-list.json"];
+	n32[shape="cylinder",label="/data/tmf/123/matching-area.geojson"];
+	n34[shape="cylinder",label="/data/tmf/srtm/zip"];
+	n35[shape="cylinder",label="/data/tmf/srtm/tif"];
+	n37[shape="cylinder",label="/data/tmf/slopes"];
+	n39[shape="cylinder",label="/data/tmf/rescaled-elevation"];
+	n41[shape="cylinder",label="/data/tmf/rescaled-slopes"];
+	n43[shape="cylinder",label="/data/tmf/123/countries.tif"];
+	n45[shape="cylinder",label="/data/tmf/123/k.parquet"];
+	n47[shape="cylinder",label="/data/tmf/123/matches"];
+	n49[shape="cylinder",label="/data/tmf/123/matches.tif"];
+	n51[shape="cylinder",label="/data/tmf/123/matches.parquet"];
+	n53[shape="cylinder",label="/data/tmf/123/pairs"];
+	n55[shape="cylinder",label="/data/tmf/123/additionality.csv"];
 subgraph "cluster_0" {
 	style = solid
-	label = "JRC"
-	n4[shape="box",label="methods.inputs.download_jrc_data"];
-	n4->n2[penwidth="2.0"];
-	n4->n3[penwidth="2.0"];
+	label = "imports"
+	n1[shape="cylinder",label="boundary"];
+	n1->n0[penwidth="2.0"];
+
+	n3[shape="cylinder",label="projects"];
+	n3->n2[penwidth="2.0"];
 
 }
 subgraph "cluster_1" {
 	style = solid
 	label = "JRC"
-	n3->n6[penwidth="2.0"];
-	n6[shape="box",label="methods.inputs.generate_fine_circular_coverage"];
+	n6[shape="box",label="methods.inputs.download_jrc_data"];
+	n6->n4[penwidth="2.0"];
 	n6->n5[penwidth="2.0"];
 
 }
 subgraph "cluster_2" {
 	style = solid
-	label = "Ecoregions"
-	n8[shape="box",label="methods.inputs.download_shapefiles"];
+	label = "JRC"
+	n5->n8[penwidth="2.0"];
+	n8[shape="box",label="methods.inputs.generate_fine_circular_coverage"];
 	n8->n7[penwidth="2.0"];
 
 }
 subgraph "cluster_3" {
 	style = solid
 	label = "Ecoregions"
-	n7->n10[penwidth="2.0"];
-	n3->n10[penwidth="2.0"];
-	n10[shape="box",label="methods.inputs.generate_ecoregion_rasters"];
+	n10[shape="box",label="methods.inputs.download_shapefiles"];
 	n10->n9[penwidth="2.0"];
 
 }
 subgraph "cluster_4" {
 	style = solid
-	label = "ACCESS"
-	n12[shape="box",label="methods.inputs.download_accessibility"];
+	label = "Ecoregions"
+	n9->n12[penwidth="2.0"];
+	n5->n12[penwidth="2.0"];
+	n12[shape="box",label="methods.inputs.generate_ecoregion_rasters"];
 	n12->n11[penwidth="2.0"];
 
 }
 subgraph "cluster_5" {
 	style = solid
 	label = "ACCESS"
-	n11->n14[penwidth="2.0"];
-	n3->n14[penwidth="2.0"];
-	n14[shape="box",label="methods.inputs.generate_access_tiles"];
+	n14[shape="box",label="methods.inputs.download_accessibility"];
 	n14->n13[penwidth="2.0"];
 
 }
 subgraph "cluster_6" {
 	style = solid
-	label = "Country boarders"
-	n16[shape="box",label="methods.inputs.osm_countries"];
+	label = "ACCESS"
+	n13->n16[penwidth="2.0"];
+	n5->n16[penwidth="2.0"];
+	n16[shape="box",label="methods.inputs.generate_access_tiles"];
 	n16->n15[penwidth="2.0"];
 
 }
 subgraph "cluster_7" {
 	style = solid
-	label = "Make variations on project shapes"
-	n0->n18[penwidth="2.0"];
-	n18[shape="box",label="methods.inputs.generate_boundary"];
+	label = "Country boarders"
+	n18[shape="box",label="methods.inputs.osm_countries"];
 	n18->n17[penwidth="2.0"];
 
 }
@@ -95,49 +97,48 @@ subgraph "cluster_8" {
 	style = solid
 	label = "Make variations on project shapes"
 	n0->n20[penwidth="2.0"];
-	n20[shape="box",label="methods.inputs.generate_leakage"];
+	n20[shape="box",label="methods.inputs.generate_boundary"];
 	n20->n19[penwidth="2.0"];
 
 }
 subgraph "cluster_9" {
 	style = solid
-	label = "Make LUC tiles"
-	n17->n22[penwidth="2.0"];
-	n3->n22[penwidth="2.0"];
-	n22[shape="box",label="methods.inputs.generate_luc_layer"];
+	label = "Make variations on project shapes"
+	n0->n22[penwidth="2.0"];
+	n22[shape="box",label="methods.inputs.generate_leakage"];
 	n22->n21[penwidth="2.0"];
 
 }
 subgraph "cluster_10" {
 	style = solid
-	label = "GEDI data"
-	n17->n24[penwidth="2.0"];
-	n24[shape="box",label="methods.inputs.download_gedi_data"];
+	label = "Make LUC tiles"
+	n19->n24[penwidth="2.0"];
+	n5->n24[penwidth="2.0"];
+	n24[shape="box",label="methods.inputs.generate_luc_layer"];
 	n24->n23[penwidth="2.0"];
 
 }
 subgraph "cluster_11" {
 	style = solid
 	label = "GEDI data"
-	n23->n25[penwidth="2.0"];
-	n25[shape="box",label="methods.inputs.import_gedi_data"];
+	n19->n26[penwidth="2.0"];
+	n26[shape="box",label="methods.inputs.download_gedi_data"];
+	n26->n25[penwidth="2.0"];
 
 }
 subgraph "cluster_12" {
 	style = solid
 	label = "GEDI data"
-	n17->n27[penwidth="2.0"];
-	n21->n27[penwidth="2.0"];
-	n27[shape="box",label="methods.inputs.generate_carbon_density"];
-	n27->n26[penwidth="2.0"];
+	n25->n27[penwidth="2.0"];
+	n27[shape="box",label="methods.inputs.import_gedi_data"];
 
 }
 subgraph "cluster_13" {
 	style = solid
 	label = "GEDI data"
-	n0->n29[penwidth="2.0"];
-	n15->n29[penwidth="2.0"];
-	n29[shape="box",label="methods.inputs.generate_country_list"];
+	n19->n29[penwidth="2.0"];
+	n23->n29[penwidth="2.0"];
+	n29[shape="box",label="methods.inputs.generate_carbon_density"];
 	n29->n28[penwidth="2.0"];
 
 }
@@ -145,84 +146,77 @@ subgraph "cluster_14" {
 	style = solid
 	label = "GEDI data"
 	n0->n31[penwidth="2.0"];
-	n28->n31[penwidth="2.0"];
-	n15->n31[penwidth="2.0"];
-	n7->n31[penwidth="2.0"];
-	n1->n31[penwidth="2.0"];
-	n31[shape="box",label="methods.inputs.generate_matching_area"];
+	n17->n31[penwidth="2.0"];
+	n31[shape="box",label="methods.inputs.generate_country_list"];
 	n31->n30[penwidth="2.0"];
 
 }
 subgraph "cluster_15" {
 	style = solid
-	label = "Elevation and slope data"
-	n0->n34[penwidth="2.0"];
-	n30->n34[penwidth="2.0"];
-	n34[shape="box",label="methods.inputs.download_srtm_data"];
-	n34->n32[penwidth="2.0"];
-	n34->n33[penwidth="2.0"];
+	label = "GEDI data"
+	n0->n33[penwidth="2.0"];
+	n30->n33[penwidth="2.0"];
+	n17->n33[penwidth="2.0"];
+	n9->n33[penwidth="2.0"];
+	n2->n33[penwidth="2.0"];
+	n33[shape="box",label="methods.inputs.generate_matching_area"];
+	n33->n32[penwidth="2.0"];
 
 }
 subgraph "cluster_16" {
 	style = solid
 	label = "Elevation and slope data"
-	n33->n36[penwidth="2.0"];
-	n36[shape="box",label="methods.inputs.generate_slope"];
+	n0->n36[penwidth="2.0"];
+	n32->n36[penwidth="2.0"];
+	n36[shape="box",label="methods.inputs.download_srtm_data"];
+	n36->n34[penwidth="2.0"];
 	n36->n35[penwidth="2.0"];
 
 }
 subgraph "cluster_17" {
 	style = solid
 	label = "Elevation and slope data"
-	n3->n38[penwidth="2.0"];
-	n33->n38[penwidth="2.0"];
-	n38[shape="box",label="methods.inputs.rescale_tiles_to_jrc"];
+	n35->n38[penwidth="2.0"];
+	n38[shape="box",label="methods.inputs.generate_slope"];
 	n38->n37[penwidth="2.0"];
-
-	n3->n40[penwidth="2.0"];
-	n35->n40[penwidth="2.0"];
-	n40[shape="box",label="methods.inputs.rescale_tiles_to_jrc"];
-	n40->n39[penwidth="2.0"];
 
 }
 subgraph "cluster_18" {
 	style = solid
-	label = "Country raster"
-	n3->n42[penwidth="2.0"];
-	n30->n42[penwidth="2.0"];
-	n15->n42[penwidth="2.0"];
-	n42[shape="box",label="methods.inputs.generate_country_raster"];
+	label = "Elevation and slope data"
+	n5->n40[penwidth="2.0"];
+	n35->n40[penwidth="2.0"];
+	n40[shape="box",label="methods.inputs.rescale_tiles_to_jrc"];
+	n40->n39[penwidth="2.0"];
+
+	n5->n42[penwidth="2.0"];
+	n37->n42[penwidth="2.0"];
+	n42[shape="box",label="methods.inputs.rescale_tiles_to_jrc"];
 	n42->n41[penwidth="2.0"];
 
 }
 subgraph "cluster_19" {
 	style = solid
-	label = "Calculate set K"
-	n0->n44[penwidth="2.0"];
-	n3->n44[penwidth="2.0"];
+	label = "Country raster"
 	n5->n44[penwidth="2.0"];
-	n9->n44[penwidth="2.0"];
-	n37->n44[penwidth="2.0"];
-	n39->n44[penwidth="2.0"];
-	n13->n44[penwidth="2.0"];
-	n41->n44[penwidth="2.0"];
-	n44[shape="box",label="methods.matching.calculate_k"];
+	n32->n44[penwidth="2.0"];
+	n17->n44[penwidth="2.0"];
+	n44[shape="box",label="methods.inputs.generate_country_raster"];
 	n44->n43[penwidth="2.0"];
 
 }
 subgraph "cluster_20" {
 	style = solid
-	label = "Calculate set M"
-	n43->n46[penwidth="2.0"];
-	n30->n46[penwidth="2.0"];
-	n3->n46[penwidth="2.0"];
+	label = "Calculate set K"
+	n0->n46[penwidth="2.0"];
 	n5->n46[penwidth="2.0"];
-	n9->n46[penwidth="2.0"];
-	n37->n46[penwidth="2.0"];
+	n7->n46[penwidth="2.0"];
+	n11->n46[penwidth="2.0"];
 	n39->n46[penwidth="2.0"];
-	n13->n46[penwidth="2.0"];
 	n41->n46[penwidth="2.0"];
-	n46[shape="box",label="methods.matching.find_potential_matches"];
+	n15->n46[penwidth="2.0"];
+	n43->n46[penwidth="2.0"];
+	n46[shape="box",label="methods.matching.calculate_k"];
 	n46->n45[penwidth="2.0"];
 
 }
@@ -230,7 +224,15 @@ subgraph "cluster_21" {
 	style = solid
 	label = "Calculate set M"
 	n45->n48[penwidth="2.0"];
-	n48[shape="box",label="methods.matching.build_m_raster"];
+	n32->n48[penwidth="2.0"];
+	n5->n48[penwidth="2.0"];
+	n7->n48[penwidth="2.0"];
+	n11->n48[penwidth="2.0"];
+	n39->n48[penwidth="2.0"];
+	n41->n48[penwidth="2.0"];
+	n15->n48[penwidth="2.0"];
+	n43->n48[penwidth="2.0"];
+	n48[shape="box",label="methods.matching.find_potential_matches"];
 	n48->n47[penwidth="2.0"];
 
 }
@@ -238,35 +240,43 @@ subgraph "cluster_22" {
 	style = solid
 	label = "Calculate set M"
 	n47->n50[penwidth="2.0"];
-	n30->n50[penwidth="2.0"];
-	n3->n50[penwidth="2.0"];
-	n5->n50[penwidth="2.0"];
-	n9->n50[penwidth="2.0"];
-	n37->n50[penwidth="2.0"];
-	n39->n50[penwidth="2.0"];
-	n13->n50[penwidth="2.0"];
-	n41->n50[penwidth="2.0"];
-	n50[shape="box",label="methods.matching.build_m_table"];
+	n50[shape="box",label="methods.matching.build_m_raster"];
 	n50->n49[penwidth="2.0"];
 
 }
 subgraph "cluster_23" {
 	style = solid
-	label = "Find pairs"
-	n43->n52[penwidth="2.0"];
+	label = "Calculate set M"
 	n49->n52[penwidth="2.0"];
-	n52[shape="box",label="methods.matching.find_pairs"];
+	n32->n52[penwidth="2.0"];
+	n5->n52[penwidth="2.0"];
+	n7->n52[penwidth="2.0"];
+	n11->n52[penwidth="2.0"];
+	n39->n52[penwidth="2.0"];
+	n41->n52[penwidth="2.0"];
+	n15->n52[penwidth="2.0"];
+	n43->n52[penwidth="2.0"];
+	n52[shape="box",label="methods.matching.build_m_table"];
 	n52->n51[penwidth="2.0"];
 
 }
 subgraph "cluster_24" {
 	style = solid
-	label = "Calculate additionality"
-	n0->n54[penwidth="2.0"];
-	n26->n54[penwidth="2.0"];
+	label = "Find pairs"
+	n45->n54[penwidth="2.0"];
 	n51->n54[penwidth="2.0"];
-	n54[shape="box",label="methods.outputs.calculate_additionality"];
+	n54[shape="box",label="methods.matching.find_pairs"];
 	n54->n53[penwidth="2.0"];
+
+}
+subgraph "cluster_25" {
+	style = solid
+	label = "Calculate additionality"
+	n0->n56[penwidth="2.0"];
+	n28->n56[penwidth="2.0"];
+	n53->n56[penwidth="2.0"];
+	n56[shape="box",label="methods.outputs.calculate_additionality"];
+	n56->n55[penwidth="2.0"];
 
 }
 }

@@ -216,12 +216,40 @@ let pass_one_on_list inputs section_list =
 
 let to_list ast = List.map snd ast.nodes
 
-let of_sharkdown ~template_markdown =
-  let metadata, sections =
+let synthesize_import_block input_map input_override_map =
+  let imports =
+    List.map
+      (fun (k, p) ->
+        let dest = List.assoc k input_map in
+        (p, dest))
+      input_override_map
+  in
+  let codeblock =
+    List.fold_left
+      (fun acc (src, dst) ->
+        acc
+        ^ Printf.sprintf "%s %s\n" (Fpath.to_string src) (Fpath.to_string dst))
+      "" imports
+  in
+  let block = Block.import codeblock in
+  ("imports", [ block_to_superblock block ])
+
+let synthesize_unmapped_import_block input_map =
+  let codeblock =
+    List.fold_left
+      (fun acc (src, dst) ->
+        acc ^ Printf.sprintf "%s %s\n" src (Fpath.to_string dst))
+      "" input_map
+  in
+  let block = Block.import codeblock in
+  ("imports", [ block_to_superblock block ])
+
+let of_sharkdown ?concrete_paths template_markdown =
+  let metadata, sections, markdown =
     match String.cuts ~sep:"---" template_markdown with
     | [ frontmatter; markdown ] | [ ""; frontmatter; markdown ] ->
-        (parse_frontmatter frontmatter, parse_markdown markdown)
-    | [ markdown ] -> (Frontmatter.empty, parse_markdown markdown)
+        (parse_frontmatter frontmatter, parse_markdown markdown, markdown)
+    | [ markdown ] -> (Frontmatter.empty, parse_markdown markdown, markdown)
     | _ -> failwith "Malformed frontmatter/markdown file"
   in
 
@@ -239,11 +267,40 @@ let of_sharkdown ~template_markdown =
       sections
   in
 
+  let input_map = Frontmatter.input_map metadata in
+  let synthesized_sections =
+    match input_map with
+    | [] -> []
+    | _ -> (
+        match concrete_paths with
+        | Some concrete_paths ->
+            [ synthesize_import_block input_map concrete_paths ]
+        | None -> [ synthesize_unmapped_import_block input_map ])
+  in
+
+  let expanded_markdown =
+    List.fold_left
+      (fun acc (name, bs) ->
+        let title = Printf.sprintf "# %s\n\n" name in
+        let body =
+          List.fold_left
+            (fun acc b ->
+              Printf.sprintf "```%s\n%s\n```\n\n"
+                (Block.to_info_string b.block)
+                (Block.body b.block)
+              ^ acc)
+            "\n" bs
+        in
+
+        (title ^ body) ^ acc)
+      markdown synthesized_sections
+  in
+
+  let expanded_sections = synthesized_sections @ detailed_sections in
+
   (* we can only infer the dependancy graph globally, so we need to do this at the top level before
      then working out the DAG. *)
-  let pass1 =
-    pass_one_on_list (Frontmatter.inputs metadata) detailed_sections
-  in
+  let pass1 = pass_one_on_list [] expanded_sections in
 
   (* Now I have the global graph implicitly, turn the list into a graph of blocks *)
   let all_hyperblocks = List.concat_map Section.blocks pass1 in
@@ -273,7 +330,7 @@ let of_sharkdown ~template_markdown =
          id_all_hyperblocks)
   in
 
-  { nodes = id_all_hyperblocks; edges }
+  ({ nodes = id_all_hyperblocks; edges }, expanded_markdown)
 
 let find_id_of_block ast ib =
   let d = Block.digest ib in

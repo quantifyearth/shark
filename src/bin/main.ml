@@ -123,21 +123,29 @@ let edit ~proc ~net ~fs () file port =
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
 let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
-    src_dir env_override =
+    src_dir env_override input_override =
+  let import_map =
+    List.map
+      (fun (k, v) ->
+        match Fpath.of_string v with
+        | Ok p -> (k, p)
+        | Error (`Msg msg) -> Fmt.failwith "Not a valid path %s: %s" v msg)
+      input_override
+  in
+
   run_eventloop @@ fun () ->
   let ((_, store) as s) = store_or_default store in
   let (Builder ((module Builder), _builder) as obuilder) =
     create_builder ~fs ~net ~domain_mgr fetcher s conf
   in
   Fun.protect ~finally:(fun () -> ()) @@ fun () ->
-  let doc =
-    In_channel.with_open_bin file @@ fun ic ->
-    Cmarkit.Doc.of_string (In_channel.input_all ic)
-  in
-
   let file_path = Eio.Path.(fs / file) in
   let template_markdown = Eio.Path.load file_path in
-  let ast = Shark.Ast.of_sharkdown ~template_markdown in
+  let ast, markdown =
+    Shark.Ast.of_sharkdown ~concrete_paths:import_map template_markdown
+  in
+
+  let doc = Cmarkit.Doc.of_string markdown in
 
   let pool = Eio.Pool.create jobs (fun () -> ()) in
   let store = Lwt_eio.run_lwt @@ fun () -> store in
@@ -151,7 +159,12 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
           (* First we translate the import statement to a build block *)
           let uid = string_of_int !import_uid in
           incr import_uid;
-          let cb, blk = Shark.Md.translate_import_block ~uid block in
+          let (cb, blk), src_dir_opt =
+            Shark.Md.translate_import_block ~uid block
+          in
+          let import_src_dir =
+            match src_dir_opt with Some x -> x | None -> src_dir
+          in
           (* Now we build the block *)
           (* Import block digests need to be mapped to this build hash *)
           let hb =
@@ -166,7 +179,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
           let _alias, _id, cb =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
             let cb, blk =
-              Shark.Md.process_build_block ~src_dir ~hb obuilder ast (cb, blk)
+              Shark.Md.process_build_block ~src_dir:import_src_dir ~hb obuilder
+                ast (cb, blk)
             in
             ( Shark.Block.alias blk,
               option_get ~msg:"Block hash for import" (Shark.Block.hash blk),
@@ -337,6 +351,11 @@ let env_override =
           KEY=VALUE."
        ~docv:"ENVIRONMENT" [ "e" ]
 
+let input_override =
+  Arg.value
+  @@ Arg.(opt_all (pair ~sep:'=' string string)) []
+  @@ Arg.info ~doc:"Provide input file names KEY=VALUE." ~docv:"INPUT" [ "i" ]
+
 let build ~fs ~net ~domain_mgr ~clock =
   let doc = "Build a spec file." in
   let info = Cmd.info "build" ~doc in
@@ -361,7 +380,8 @@ let md ~fs ~net ~domain_mgr ~proc ~clock =
     Term.(
       const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
-      $ markdown_file $ port $ fetcher $ jobs $ src_dir $ env_override)
+      $ markdown_file $ port $ fetcher $ jobs $ src_dir $ env_override
+      $ input_override)
 
 let editor ~proc ~net ~fs ~clock =
   let doc = "Run the editor for a markdown file" in

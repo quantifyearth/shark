@@ -48,4 +48,9 @@ val process_publish_block :
   Cmarkit.Block.Code_block.t * Block.t
 
 val translate_import_block :
-  uid:string -> Block.t -> Cmarkit.Block.Code_block.t * Block.t
+  uid:string ->
+  Block.t ->
+  (Cmarkit.Block.Code_block.t * Block.t) * string option
+(** [translate_import_block uid block] will generate an expanded code block that contains a shark-build spec that 
+    carries out the actual import when evaluated. If the import is from the file system then the optional second
+    return is the src_dir needed for the file system context when the spec is evaluated. *)

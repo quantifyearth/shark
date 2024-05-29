@@ -6,3 +6,4 @@ val empty : t
 val of_string : string -> (t, [ `Msg of string ]) result
 val variables : t -> (string * string list) list
 val inputs : t -> Fpath.t list
+val input_map : t -> (string * Fpath.t) list
