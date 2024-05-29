@@ -225,8 +225,8 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
                current image. *)
             let args = Command.file_args command in
             let inspected_path =
-              match List.length args with
-              | 0 ->
+              match args with
+              | [] ->
                   (* no /data path in this, so just pull the path directly as the AST only works with /data paths *)
                   String.cut ~sep:" " (Command.to_string command)
                   |> Option.get ~err:"Failed to get path in cd"
@@ -236,7 +236,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
                   match List.assoc_opt path file_subs_map with
                   | None -> path
                   | Some pl -> (
-                      match List.length pl with 0 -> path | _ -> List.nth pl 0))
+                      match pl with [] -> path | _ -> List.nth pl 0))
             in
 
             let cmd_result = CommandResult.v ~build_hash cmdstr in

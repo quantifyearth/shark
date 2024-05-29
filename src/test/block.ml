@@ -98,7 +98,8 @@ let test_file_import_block_no_schema () =
   Alcotest.(check bool)
     "Found git command" true
     (Astring.String.is_infix ~affix:"copy" specbody);
-  Alcotest.(check (option string)) "Src_dir change" (Some "/home/michael") src_dir
+  Alcotest.(check (option string))
+    "Src_dir change" (Some "/home/michael") src_dir
 
 let test_file_import_block_with_schema () =
   let body = "file:///home/michael/file.csv /data/file.csv" in
@@ -116,7 +117,8 @@ let test_file_import_block_with_schema () =
   Alcotest.(check bool)
     "Found git command" true
     (Astring.String.is_infix ~affix:"copy" specbody);
-    Alcotest.(check (option string)) "Src_dir change" (Some "/home/michael") src_dir
+  Alcotest.(check (option string))
+    "Src_dir change" (Some "/home/michael") src_dir
 
 let tests =
   [

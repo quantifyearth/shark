@@ -269,8 +269,8 @@ let of_sharkdown ?concrete_paths template_markdown =
 
   let input_map = Frontmatter.input_map metadata in
   let synthesized_sections =
-    match List.length input_map with
-    | 0 -> []
+    match input_map with
+    | [] -> []
     | _ -> (
         match concrete_paths with
         | Some concrete_paths ->
