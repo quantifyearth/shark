@@ -340,12 +340,21 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               s @ a)
             [] paths
         in
+        (* Sanity check whether we found the matching inputs *)
+        List.iter (fun (i, s) ->
+          match s with
+          | [] -> Fmt.failwith "Failed to find source files for input %s of %s" i (Command.name (Leaf.command leaf))
+          | _ -> ()
+        ) l;
         let inputs = Leaf.to_string_for_inputs leaf l in
         let processed_blocks =
           Fiber.List.map (process pool acc leaf l) inputs
         in
         let results, _hash, _pwd, _env = acc in
-        let { build_hash; workdir; env; _ } = List.hd processed_blocks in
+        let { build_hash; workdir; env; _ } = match processed_blocks with
+          | hd :: _ -> hd
+          | [] -> Fmt.failwith "There were no processed blocks for %s" (Command.name (Leaf.command leaf))
+        in
         (processed_blocks :: results, build_hash, workdir, env)
       in
 
