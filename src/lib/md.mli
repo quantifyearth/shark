@@ -28,7 +28,7 @@ val process_build_block :
   builder ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
-  Cmarkit.Block.Code_block.t * Block.t
+  Cmarkit.Block.Code_block.t * Block.t * [ `Stop of string | `Continue ]
 
 val process_run_block :
   ?env_override:(string * string) list ->
