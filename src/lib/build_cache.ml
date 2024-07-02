@@ -22,6 +22,8 @@ let add t ~alias ~id =
   t.alias_to_build_hash <- (alias, id) :: t.alias_to_build_hash
 
 let with_build t fn =
-  let alias, id, res = fn t in
-  add t ~alias ~id;
-  (alias, id, res)
+  match fn t with
+  | Ok (alias, id, res) ->
+      add t ~alias ~id;
+      Ok (alias, id, res)
+  | Error r -> Error r

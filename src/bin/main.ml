@@ -155,7 +155,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
     if no_run then (code_block, `Continue)
     else
       match Shark.Block.kind block with
-      | `Import ->
+      | `Import -> (
           (* First we translate the import statement to a build block *)
           let uid = string_of_int !import_uid in
           incr import_uid;
@@ -176,44 +176,48 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
                       block);
                 failwith "Block not found"
           in
-          let _alias, _id, cb =
+          let res =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
-            let cb, blk =
+            let cb, blk, stop =
               Shark.Md.process_build_block ~src_dir:import_src_dir ~hb obuilder
                 ast (cb, blk)
             in
-            ( Shark.Block.alias blk,
-              option_get ~msg:"Block hash for import" (Shark.Block.hash blk),
-              cb )
+            match stop with
+            | `Stop msg -> Error (msg, cb)
+            | `Continue ->
+                Ok
+                  ( Shark.Block.alias blk,
+                    option_get ~msg:"Block hash for import"
+                      (Shark.Block.hash blk),
+                    cb )
           in
-          (* And associate the import statement with the build block *)
-          (* image_hash_map :=
-               (Shark.Block.alias blk, Option.get (Shark.Block.hash blk))
-               :: !image_hash_map;
-             data_hash_map :=
-               ( Shark.Block.digest block,
-                 (* The import block statement *)
-                 Option.get (Shark.Block.hash blk) )
-               (* The build statement *)
-               :: !data_hash_map; *)
-          (cb, `Continue)
+          match res with
+          | Ok (_alias, _id, cb) -> (cb, `Continue)
+          | Error (msg, cb) -> (cb, `Stop msg))
       | `Publish ->
           let cb, _blk =
             Shark.Md.process_publish_block store ast (code_block, block)
           in
           (cb, `Continue)
-      | `Build ->
-          let _alias, _id, cb =
+      | `Build -> (
+          let res =
             Shark.Build_cache.with_build build_cache @@ fun _build_cache ->
-            let cb, blk =
+            let cb, blk, stop =
               Shark.Md.process_build_block ~src_dir obuilder ast
                 (code_block, block)
             in
-            ( Shark.Block.alias blk,
-              option_get ~msg:"Block hash for build" (Shark.Block.hash blk),
-              cb )
+            match stop with
+            | `Stop msg -> Error (msg, cb)
+            | `Continue ->
+                Ok
+                  ( Shark.Block.alias blk,
+                    option_get ~msg:"Block hash for build"
+                      (Shark.Block.hash blk),
+                    cb )
           in
-          (cb, `Continue)
+          match res with
+          | Ok (_alias, _id, cb) -> (cb, `Continue)
+          | Error (msg, cb) -> (cb, `Stop msg))
       | `Run ->
           let cb, _result_block, stop =
             Shark.Md.process_run_block ~env_override ~fs ~build_cache ~pool

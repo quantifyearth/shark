@@ -61,9 +61,14 @@ let process_build_block ?(src_dir = ".") ?hb
       let log = log `Build buf in
       let context = Obuilder.Context.v ~log ~src_dir () in
       match Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec with
-      | Error `Cancelled -> failwith "Cancelled by user"
-      | Error (`Msg m) -> failwith m
-      | Ok id | Error (`Failed (id, _)) ->
+      | Error `Cancelled -> (code_block, block, `Stop "Cancelled by user")
+      | Error (`Msg m) -> (code_block, block, `Stop m)
+      | Error (`Failed (id, msg)) ->
+          let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
+          let body = Cmarkit.Block_line.list_of_string (Buffer.contents buf) in
+          let cb = Cmarkit.Block.Code_block.make ~info_string body in
+          (cb, block, `Stop (Printf.sprintf "%s: %s" id msg))
+      | Ok id ->
           let block_with_hash = Block.with_hash block id in
           (* Update hyperblock hash *)
           let hb =
@@ -80,7 +85,7 @@ let process_build_block ?(src_dir = ".") ?hb
               ~info_string:(info_string, Cmarkit.Meta.none)
               (Cmarkit.Block.Code_block.code code_block)
           in
-          (new_code_block, block_with_hash))
+          (new_code_block, block_with_hash, `Continue))
   | _ -> failwith "expected build"
 
 let input_hashes ast block =
@@ -341,19 +346,25 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             [] paths
         in
         (* Sanity check whether we found the matching inputs *)
-        List.iter (fun (i, s) ->
-          match s with
-          | [] -> Fmt.failwith "Failed to find source files for input %s of %s" i (Command.name (Leaf.command leaf))
-          | _ -> ()
-        ) l;
+        List.iter
+          (fun (i, s) ->
+            match s with
+            | [] ->
+                Fmt.failwith "Failed to find source files for input %s of %s" i
+                  (Command.name (Leaf.command leaf))
+            | _ -> ())
+          l;
         let inputs = Leaf.to_string_for_inputs leaf l in
         let processed_blocks =
           Fiber.List.map (process pool acc leaf l) inputs
         in
         let results, _hash, _pwd, _env = acc in
-        let { build_hash; workdir; env; _ } = match processed_blocks with
+        let { build_hash; workdir; env; _ } =
+          match processed_blocks with
           | hd :: _ -> hd
-          | [] -> Fmt.failwith "There were no processed blocks for %s" (Command.name (Leaf.command leaf))
+          | [] ->
+              Fmt.failwith "There were no processed blocks for %s"
+                (Command.name (Leaf.command leaf))
         in
         (processed_blocks :: results, build_hash, workdir, env)
       in

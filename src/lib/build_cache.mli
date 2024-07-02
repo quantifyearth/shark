@@ -13,6 +13,8 @@ val find_exn : t -> string -> Obuilder.S.id
 (** Like {! find} except raises [Failure] if not found *)
 
 val with_build :
-  t -> (t -> string * Obuilder.S.id * 'a) -> string * Obuilder.S.id * 'a
+  t ->
+  (t -> (string * Obuilder.S.id * 'a, string * 'a) result) ->
+  (string * Obuilder.S.id * 'a, string * 'a) result
 (** [with_build t fn] runs [fn] that returns an alias and build ID that
     are added to the build cache store *)
