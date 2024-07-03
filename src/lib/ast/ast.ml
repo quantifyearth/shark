@@ -49,6 +49,7 @@ type block_id = int [@@deriving sexp]
 type t = {
   nodes : (block_id * Hyperblock.t) list;
   edges : (block_id * block_id) list;
+  metadata : Frontmatter.t;
 }
 [@@deriving sexp]
 
@@ -330,7 +331,7 @@ let of_sharkdown ?concrete_paths template_markdown =
          id_all_hyperblocks)
   in
 
-  ({ nodes = id_all_hyperblocks; edges }, expanded_markdown)
+  ({ nodes = id_all_hyperblocks; edges; metadata }, expanded_markdown)
 
 let find_id_of_block ast ib =
   let d = Block.digest ib in
@@ -357,3 +358,5 @@ let find_dependencies ast id =
       if too = id then Some from else None)
     ast.edges
   |> List.map (fun id -> List.assoc id ast.nodes)
+
+let default_container_path ast = Frontmatter.default_container_path ast.metadata

@@ -66,3 +66,16 @@ let of_string s = String.trim s |> Yaml.of_string |> Result.map of_toplevel_yaml
 let variables t = t.variables
 let inputs t = List.map (fun (_, v) -> v) t.inputs
 let input_map t = t.inputs
+
+let default_container_path t =
+  let default = "/root" in
+  let path = match (List.assoc_opt "path" t.variables) with
+  | None -> default
+  | Some pl -> (
+    match (List.nth_opt pl 0) with
+    | None -> default
+    | Some p -> p
+  ) in
+  match Fpath.of_string path with
+  | Error (`Msg m) -> failwith m
+  | Ok p -> p
