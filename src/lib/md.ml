@@ -370,7 +370,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
       in
 
       let ids_and_output_and_cmd, _hash, _pwd, _env =
-        List.fold_left outer_process ([], build, "/root", []) commands
+        List.fold_left outer_process ([], build, (Fpath.to_string (Ast.default_container_path ast)), []) commands
       in
       let last = List.hd ids_and_output_and_cmd in
       let { build_hash = id; _ } = List.hd last in
