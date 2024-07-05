@@ -4,15 +4,6 @@ open Import
 
 let ( / ) = Eio.Path.( / )
 
-module CommandResult = struct
-  type t = { build_hash : string; output : string option; command : string }
-
-  let v ?output ~build_hash command = { build_hash; output; command }
-  let _build_hash r = r.build_hash
-  let output r = r.output
-  let command r = r.command
-end
-
 let map_blocks (doc : Cmarkit.Doc.t) ~f =
   let build_cache = Build_cache.v () in
   let stop_processing = ref None in
@@ -159,7 +150,7 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
       List.map find_files_in_store outputs
 
 type processed_output = {
-  cmd_result : CommandResult.t;
+  cmd_result : Run_block.CommandResult.t;
   success : bool;
   build_hash : Obuilder.S.id;
   workdir : string;
@@ -244,7 +235,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
                       match pl with [] -> path | _ -> List.nth pl 0))
             in
 
-            let cmd_result = CommandResult.v ~build_hash cmdstr in
+            let cmd_result = Run_block.CommandResult.v ~build_hash cmdstr in
             {
               cmd_result;
               build_hash;
@@ -268,7 +259,8 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               | Some v -> v
             in
             let cmd_result =
-              CommandResult.v ~build_hash (Fmt.str "export %s=%s" key value)
+              Run_block.CommandResult.v ~build_hash
+                (Fmt.str "export %s=%s" key value)
             in
             {
               cmd_result;
@@ -290,8 +282,8 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             | Ok id ->
                 {
                   cmd_result =
-                    CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
-                      cmdstr;
+                    Run_block.CommandResult.v ~build_hash:id
+                      ~output:(Buffer.contents buf) cmdstr;
                   build_hash = id;
                   success = true;
                   workdir;
@@ -301,7 +293,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             | Error (`Msg m) -> failwith m
             | Error (`Failed (id, msg)) ->
                 let cmd_result =
-                  CommandResult.v ~build_hash:id
+                  Run_block.CommandResult.v ~build_hash:id
                     ~output:(msg ^ "\n" ^ Buffer.contents buf)
                     cmdstr
                 in
@@ -370,7 +362,9 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
       in
 
       let ids_and_output_and_cmd, _hash, _pwd, _env =
-        List.fold_left outer_process ([], build, (Fpath.to_string (Ast.default_container_path ast)), []) commands
+        List.fold_left outer_process
+          ([], build, Fpath.to_string (Ast.default_container_path ast), [])
+          commands
       in
       let last = List.hd ids_and_output_and_cmd in
       let { build_hash = id; _ } = List.hd last in
@@ -380,8 +374,10 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           (fun s { cmd_result = r; _ } ->
             s
             @ [
-                CommandResult.command r;
-                (match CommandResult.output r with Some o -> o | None -> "");
+                Run_block.CommandResult.command r;
+                (match Run_block.CommandResult.output r with
+                | Some o -> o
+                | None -> "");
               ])
           []
           (List.concat (List.rev ids_and_output_and_cmd))
@@ -403,7 +399,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         match stop with
         | None -> `Continue
         | Some r -> (
-            match r.cmd_result.output with
+            match Run_block.CommandResult.output r.cmd_result with
             | Some o -> `Stop o
             | None -> `Stop "No output")
       in
