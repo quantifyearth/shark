@@ -25,10 +25,21 @@ end
 
 val process_single_command_execution :
   ExecutionState.t ->
-  Obuilder_spec.Rom.t list ->
   (string * string) list ->
   Leaf.t ->
   (string * string list) list ->
-  (Obuilder_spec.t -> Buffer.t -> (string, string option * string) result) ->
+  (ExecutionState.t ->
+  Leaf.t ->
+  string ->
+  Buffer.t ->
+  (string, string option * string) result) ->
   string ->
   ExecutionState.t
+(** [process_single_command_execution previous_state environment_override leaf file_map task_runner command_string] 
+  evaluates the [command_string] based on the state of the previous exection [previous_state]. Certain commands
+  will just update the state machine (e.g., cd and export), but commands that are side effect driven will
+  invoke [task_runner] to do the actual exection - most likely with Obuilder, but the point here is to keep 
+  that stuff external to allow for easier testing.
+  
+  Currently this has a complicated interface as it was before part of the main md run look - the aim is over
+  time to try clean this up. *)

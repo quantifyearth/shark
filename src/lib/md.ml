@@ -176,7 +176,36 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         |> List.concat
       in
 
-      let runner spec buf =
+      let spec_for_command previous_state leaf cmdstr =
+        let target_dirs l =
+          List.map
+            (fun d ->
+              let p = Datafile.fullpath d in
+              let open Obuilder_spec in
+              let target =
+                match Datafile.is_dir d with
+                | false -> Fpath.parent p
+                | true -> p
+              in
+              run "mkdir -p %s" (Fpath.to_string target))
+            (Leaf.outputs l)
+        in
+
+        let build_hash = Run_block.ExecutionState.build_hash previous_state
+        and workdir = Run_block.ExecutionState.workdir previous_state
+        and environment = Run_block.ExecutionState.env previous_state in
+        Obuilder_spec.stage ~from:(`Build build_hash)
+          ([
+             Obuilder_spec.user_unix ~uid:0 ~gid:0;
+             Obuilder_spec.workdir workdir;
+           ]
+          @ List.map (fun (k, v) -> Obuilder_spec.env k v) environment
+          @ target_dirs leaf
+          @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
+      in
+
+      let runner previous_state leaf cmdstr buf =
+        let spec = spec_for_command previous_state leaf cmdstr in
         Eio.Pool.use pool @@ fun () ->
         let log = log `Run buf in
         let context = Obuilder.Context.v ~log ~src_dir:"." () in
@@ -241,8 +270,8 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         let _, prev_state = acc in
         let processed_blocks =
           Fiber.List.map
-            (Run_block.process_single_command_execution prev_state rom
-               env_override leaf l runner)
+            (Run_block.process_single_command_execution prev_state env_override
+               leaf l runner)
             inputs
         in
         let results, _es = acc in

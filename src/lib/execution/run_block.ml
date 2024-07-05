@@ -55,29 +55,7 @@ module ExecutionState = struct
   let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 end
 
-let spec_for_command previous_state rom leaf cmdstr =
-  let target_dirs l =
-    List.map
-      (fun d ->
-        let p = Datafile.fullpath d in
-        let open Obuilder_spec in
-        let target =
-          match Datafile.is_dir d with false -> Fpath.parent p | true -> p
-        in
-        run "mkdir -p %s" (Fpath.to_string target))
-      (Leaf.outputs l)
-  in
-
-  let build_hash = ExecutionState.build_hash previous_state
-  and workdir = ExecutionState.workdir previous_state
-  and environment = ExecutionState.env previous_state in
-  Obuilder_spec.stage ~from:(`Build build_hash)
-    ([ Obuilder_spec.user_unix ~uid:0 ~gid:0; Obuilder_spec.workdir workdir ]
-    @ List.map (fun (k, v) -> Obuilder_spec.env k v) environment
-    @ target_dirs leaf
-    @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
-
-let process_single_command_execution previous_state rom env_override leaf
+let process_single_command_execution previous_state env_override leaf
     file_subs_map run_f expanded_command_string =
   let command = Leaf.command leaf in
   match Command.name command with
@@ -119,11 +97,8 @@ let process_single_command_execution previous_state rom env_override leaf
       ExecutionState.update_env previous_state key value
   | _ -> (
       (* Otherwise we run a command using obuilder or such *)
-      let spec =
-        spec_for_command previous_state rom leaf expanded_command_string
-      in
       let buf = Buffer.create 128 in
-      let res = run_f spec buf in
+      let res = run_f previous_state leaf expanded_command_string buf in
       match res with
       | Ok id ->
           ExecutionState.v
