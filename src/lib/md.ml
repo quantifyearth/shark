@@ -107,7 +107,7 @@ let input_hashes ast block =
   List.concat_map map_to_inputs block_dependencies
 
 let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
-    outputs =
+    mangle_paths outputs =
   let shark_mount_path = Fpath.add_seg (Fpath.v "/shark") hash in
   match Lwt_eio.run_lwt @@ fun () -> Store.result store hash with
   | None ->
@@ -124,10 +124,13 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
           |> Fpath.append rootfs |> Fpath.to_string
         in
         let shark_destination_path =
-          let root = Fpath.v "/data/" in
-          Fpath.relativize ~root container_path
-          |> Option.get ~err:"Relativizing paths"
-          |> Fpath.append shark_mount_path
+          match mangle_paths with
+          | true ->
+              let root = Fpath.v "/data/" in
+              Fpath.relativize ~root container_path
+              |> Option.get ~err:"Relativizing paths"
+              |> Fpath.append shark_mount_path
+          | false -> container_path
         in
         match Datafile.is_wildcard file with
         | false -> (
@@ -204,7 +207,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
 
-      let runner previous_state leaf cmdstr buf =
+      let obuilder_command_runner previous_state leaf cmdstr buf =
         let spec = spec_for_command previous_state leaf cmdstr in
         Eio.Pool.use pool @@ fun () ->
         let log = log `Run buf in
@@ -219,14 +222,15 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         | Error (`Failed (id, msg)) -> Error (Some id, msg)
       in
 
-      let outer_process acc leaf =
+      let process_single_command acc leaf =
+        let _, prev_state = acc in
         let inputs = Leaf.inputs leaf in
         let input_and_hashes =
-          List.filter_map
-            (fun i ->
-              match List.assoc_opt (Datafile.id i) input_map with
-              | None -> None
-              | Some x -> Some (i, x))
+          List.map
+            (fun i -> (i, List.assoc_opt (Datafile.id i) input_map))
+              (* match List.assoc_opt (Datafile.id i) input_map with
+                 | None -> Some (i, (Run_block.ExecutionState.build_hash prev_state))
+                 | Some hash -> Some (i, hash)) *)
             inputs
         in
         let hash_to_input_map =
@@ -241,7 +245,14 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         in
         let paths =
           List.map
-            (fun (hash, ref_fd_list) -> get_paths ~fs store hash !ref_fd_list)
+            (fun (hash_opt, ref_fd_list) ->
+              match hash_opt with
+              | Some hash -> get_paths ~fs store hash true !ref_fd_list
+              | None ->
+                  let current_hash =
+                    Run_block.ExecutionState.build_hash prev_state
+                  in
+                  get_paths ~fs store current_hash false !ref_fd_list)
             hash_to_input_map
         in
         let l =
@@ -267,11 +278,10 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             | _ -> ())
           l;
         let inputs = Leaf.to_string_for_inputs leaf l in
-        let _, prev_state = acc in
         let processed_blocks =
           Fiber.List.map
             (Run_block.process_single_command_execution prev_state env_override
-               leaf l runner)
+               leaf l obuilder_command_runner)
             inputs
         in
         let results, _es = acc in
@@ -282,14 +292,11 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               Fmt.failwith "There were no processed blocks for %s"
                 (Command.name (Leaf.command leaf))
         in
-        (* let build_hash = Run_block.ExecutionState.build_hash es
-           and workdir = Run_block.ExecutionState.workdir es
-           and env = Run_block.ExecutionState.env es in *)
         (processed_blocks :: results, es)
       in
 
       let ids_and_output_and_cmd, _es =
-        List.fold_left outer_process
+        List.fold_left process_single_command
           ( [],
             Run_block.ExecutionState.init build
               (Fpath.to_string (Ast.default_container_path ast))
