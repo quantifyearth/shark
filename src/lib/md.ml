@@ -149,14 +149,6 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
       in
       List.map find_files_in_store outputs
 
-type processed_output = {
-  cmd_result : Run_block.CommandResult.t;
-  success : bool;
-  build_hash : Obuilder.S.id;
-  workdir : string;
-  env : (string * string) list;
-}
-
 let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
     (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock =
@@ -236,13 +228,8 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             in
 
             let cmd_result = Run_block.CommandResult.v ~build_hash cmdstr in
-            {
-              cmd_result;
-              build_hash;
-              success = true;
-              workdir = inspected_path;
-              env;
-            }
+            Run_block.ExecutionState.v cmd_result build_hash true inspected_path
+              env
         | "export" ->
             (* `export` is treated like ENV in Docker, only supporting a single key=value for now. *)
             let key, default_value =
@@ -262,13 +249,9 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               Run_block.CommandResult.v ~build_hash
                 (Fmt.str "export %s=%s" key value)
             in
-            {
-              cmd_result;
-              build_hash;
-              success = true;
-              workdir;
-              env = (key, value) :: List.remove_assoc key env;
-            }
+            let updated_env = (key, value) :: List.remove_assoc key env in
+            Run_block.ExecutionState.v cmd_result build_hash true workdir
+              updated_env
         | _ -> (
             (* Otherwise we run a command using obuilder *)
             let buf = Buffer.create 128 in
@@ -280,15 +263,10 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec
             with
             | Ok id ->
-                {
-                  cmd_result =
-                    Run_block.CommandResult.v ~build_hash:id
-                      ~output:(Buffer.contents buf) cmdstr;
-                  build_hash = id;
-                  success = true;
-                  workdir;
-                  env;
-                }
+                Run_block.ExecutionState.v
+                  (Run_block.CommandResult.v ~build_hash:id
+                     ~output:(Buffer.contents buf) cmdstr)
+                  id true workdir env
             | Error `Cancelled -> failwith "Cancelled by user"
             | Error (`Msg m) -> failwith m
             | Error (`Failed (id, msg)) ->
@@ -297,7 +275,8 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
                     ~output:(msg ^ "\n" ^ Buffer.contents buf)
                     cmdstr
                 in
-                { cmd_result; success = false; build_hash; workdir; env })
+                Run_block.ExecutionState.v cmd_result build_hash false workdir
+                  env)
       in
       let outer_process acc leaf =
         let inputs = Leaf.inputs leaf in
@@ -351,13 +330,16 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           Fiber.List.map (process pool acc leaf l) inputs
         in
         let results, _hash, _pwd, _env = acc in
-        let { build_hash; workdir; env; _ } =
+        let es =
           match processed_blocks with
           | hd :: _ -> hd
           | [] ->
               Fmt.failwith "There were no processed blocks for %s"
                 (Command.name (Leaf.command leaf))
         in
+        let build_hash = Run_block.ExecutionState.build_hash es
+        and workdir = Run_block.ExecutionState.workdir es
+        and env = Run_block.ExecutionState.env es in
         (processed_blocks :: results, build_hash, workdir, env)
       in
 
@@ -367,11 +349,12 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           commands
       in
       let last = List.hd ids_and_output_and_cmd in
-      let { build_hash = id; _ } = List.hd last in
+      let id = Run_block.ExecutionState.build_hash (List.hd last) in
 
       let body =
         List.fold_left
-          (fun s { cmd_result = r; _ } ->
+          (fun s es ->
+            let r = Run_block.ExecutionState.result es in
             s
             @ [
                 Run_block.CommandResult.command r;
@@ -387,19 +370,25 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
       in
 
       List.iter
-        (fun { build_hash = id; _ } -> Ast.Hyperblock.update_hash hyperblock id)
+        (fun es ->
+          Ast.Hyperblock.update_hash hyperblock
+            (Run_block.ExecutionState.build_hash es))
         last;
       let block = Block.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       (* TODO: We should be able to continue procressing other blocks if only one fails
          here, but I would like to restructure the code to support this better and have
          ideas for that. For now, a single failure here will stop the procressing. *)
-      let stop = List.find_opt (fun { success; _ } -> not success) last in
+      let stop =
+        List.find_opt (fun es -> not (Run_block.ExecutionState.success es)) last
+      in
       let action =
         match stop with
         | None -> `Continue
         | Some r -> (
-            match Run_block.CommandResult.output r.cmd_result with
+            match
+              Run_block.CommandResult.output (Run_block.ExecutionState.result r)
+            with
             | Some o -> `Stop o
             | None -> `Stop "No output")
       in
