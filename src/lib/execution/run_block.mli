@@ -14,6 +14,7 @@ module ExecutionState : sig
   val v :
     CommandResult.t -> string -> bool -> string -> (string * string) list -> t
 
+  val init : string -> string -> (string * string) list -> t
   val result : t -> CommandResult.t
   val build_hash : t -> string
   val success : t -> bool
@@ -21,3 +22,13 @@ module ExecutionState : sig
   val env : t -> (string * string) list
   val pp : t Fmt.t
 end
+
+val process_single_command_execution :
+  ExecutionState.t ->
+  Obuilder_spec.Rom.t list ->
+  (string * string) list ->
+  Leaf.t ->
+  (string * string list) list ->
+  (Obuilder_spec.t -> Buffer.t -> (string, string option * string) result) ->
+  string ->
+  ExecutionState.t

@@ -176,108 +176,20 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         |> List.concat
       in
 
-      let target_dirs l =
-        List.map
-          (fun d ->
-            let p = Datafile.fullpath d in
-            let open Obuilder_spec in
-            let target =
-              match Datafile.is_dir d with false -> Fpath.parent p | true -> p
-            in
-            run "mkdir -p %s" (Fpath.to_string target))
-          (Leaf.outputs l)
-      in
-
-      let spec ~build_hash ~workdir environment leaf cmdstr =
-        Obuilder_spec.stage ~from:(`Build build_hash)
-          ([
-             Obuilder_spec.user_unix ~uid:0 ~gid:0;
-             Obuilder_spec.workdir workdir;
-           ]
-          @ List.map (fun (k, v) -> Obuilder_spec.env k v) environment
-          @ target_dirs leaf
-          @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
-      in
-
-      let process pool (_outputs, build_hash, workdir, env) leaf file_subs_map
-          cmdstr =
+      let runner spec buf =
         Eio.Pool.use pool @@ fun () ->
-        let command = Leaf.command leaf in
-        Logs.info (fun f -> f "Processing command: %a" Command.pp command);
-        match Command.name command with
-        | "cd" ->
-            (* If a command block is a call to `cd` we treat this similarly to Docker's
-               WORKDIR command which changes the working directory of the context *)
-
-            (* If the dir is in the inputs we should substitute it, otherwise we assume it's a new dir in this
-               current image. *)
-            let args = Command.file_args command in
-            let inspected_path =
-              match args with
-              | [] ->
-                  (* no /data path in this, so just pull the path directly as the AST only works with /data paths *)
-                  String.cut ~sep:" " (Command.to_string command)
-                  |> Option.get ~err:"Failed to get path in cd"
-                  |> snd
-              | _ -> (
-                  let path = Fpath.to_string (List.nth args 0) in
-                  match List.assoc_opt path file_subs_map with
-                  | None -> path
-                  | Some pl -> (
-                      match pl with [] -> path | _ -> List.nth pl 0))
-            in
-
-            let cmd_result = Run_block.CommandResult.v ~build_hash cmdstr in
-            Run_block.ExecutionState.v cmd_result build_hash true inspected_path
-              env
-        | "export" ->
-            (* `export` is treated like ENV in Docker, only supporting a single key=value for now. *)
-            let key, default_value =
-              String.concat (List.tl (Command.raw_args command))
-              |> String.cut ~sep:"="
-              |> function
-              | Some (k, v) -> (k, v)
-              | None ->
-                  Fmt.failwith "Malformed export command: %a" Command.pp command
-            in
-            let value =
-              match List.assoc_opt key env_override with
-              | None -> default_value
-              | Some v -> v
-            in
-            let cmd_result =
-              Run_block.CommandResult.v ~build_hash
-                (Fmt.str "export %s=%s" key value)
-            in
-            let updated_env = (key, value) :: List.remove_assoc key env in
-            Run_block.ExecutionState.v cmd_result build_hash true workdir
-              updated_env
-        | _ -> (
-            (* Otherwise we run a command using obuilder *)
-            let buf = Buffer.create 128 in
-            let log = log `Run buf in
-            let context = Obuilder.Context.v ~log ~src_dir:"." () in
-            let spec = spec ~build_hash ~workdir env leaf cmdstr in
-            Logs.info (fun f -> f "Running spec: %a" Obuilder_spec.pp spec);
-            match
-              Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec
-            with
-            | Ok id ->
-                Run_block.ExecutionState.v
-                  (Run_block.CommandResult.v ~build_hash:id
-                     ~output:(Buffer.contents buf) cmdstr)
-                  id true workdir env
-            | Error `Cancelled -> failwith "Cancelled by user"
-            | Error (`Msg m) -> failwith m
-            | Error (`Failed (id, msg)) ->
-                let cmd_result =
-                  Run_block.CommandResult.v ~build_hash:id
-                    ~output:(msg ^ "\n" ^ Buffer.contents buf)
-                    cmdstr
-                in
-                Run_block.ExecutionState.v cmd_result build_hash false workdir
-                  env)
+        let log = log `Run buf in
+        let context = Obuilder.Context.v ~log ~src_dir:"." () in
+        Logs.info (fun f -> f "Running spec: %a" Obuilder_spec.pp spec);
+        match
+          Lwt_eio.run_lwt @@ fun () -> Builder.build builder context spec
+        with
+        | Ok id -> Ok id
+        | Error `Cancelled -> Error (None, "Cancelled by user")
+        | Error (`Msg m) -> Error (None, m)
+        | Error (`Failed (id, msg)) -> Error (Some id, msg)
       in
+
       let outer_process acc leaf =
         let inputs = Leaf.inputs leaf in
         let input_and_hashes =
@@ -326,10 +238,14 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             | _ -> ())
           l;
         let inputs = Leaf.to_string_for_inputs leaf l in
+        let _, prev_state = acc in
         let processed_blocks =
-          Fiber.List.map (process pool acc leaf l) inputs
+          Fiber.List.map
+            (Run_block.process_single_command_execution prev_state rom
+               env_override leaf l runner)
+            inputs
         in
-        let results, _hash, _pwd, _env = acc in
+        let results, _es = acc in
         let es =
           match processed_blocks with
           | hd :: _ -> hd
@@ -337,15 +253,18 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               Fmt.failwith "There were no processed blocks for %s"
                 (Command.name (Leaf.command leaf))
         in
-        let build_hash = Run_block.ExecutionState.build_hash es
-        and workdir = Run_block.ExecutionState.workdir es
-        and env = Run_block.ExecutionState.env es in
-        (processed_blocks :: results, build_hash, workdir, env)
+        (* let build_hash = Run_block.ExecutionState.build_hash es
+           and workdir = Run_block.ExecutionState.workdir es
+           and env = Run_block.ExecutionState.env es in *)
+        (processed_blocks :: results, es)
       in
 
-      let ids_and_output_and_cmd, _hash, _pwd, _env =
+      let ids_and_output_and_cmd, _es =
         List.fold_left outer_process
-          ([], build, Fpath.to_string (Ast.default_container_path ast), [])
+          ( [],
+            Run_block.ExecutionState.init build
+              (Fpath.to_string (Ast.default_container_path ast))
+              [] )
           commands
       in
       let last = List.hd ids_and_output_and_cmd in
