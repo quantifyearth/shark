@@ -164,7 +164,7 @@ let map geojsons =
       if (i == 0) { map.setView(k.getBounds().getCenter(), 6) };
       var obj = {};
       // Extracting filepath from query params of URL
-      var file = new URLSearchParams(url.split("?")[1]).get("file").split("%2F")[1]
+      var file = url.split("/")[url.split("/").length - 1]
       obj[file] = k;
       return obj;
     })|}
@@ -262,7 +262,7 @@ let build ?inputs ?(geojsons = []) ?(jsons = []) ?(images = []) ?(tabular = [])
                          feasible on relatively small datasets.";
                     ];
                   El.pre
-                    ~at:[ At.style "height:300px; overflow-y:scroll" ]
+                    ~at:[ At.style "max-height:300px; overflow-y:scroll" ]
                     [ El.code [ El.txt manifest ] ];
                   (match geojsons with
                   | [] -> El.void

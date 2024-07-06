@@ -20,6 +20,7 @@ using that environment.
 
 ```shark-run:gdal-env
 $ gdalinfo --version > /data/gdal.version
+$ curl -s https://france-geojson.gregoiredavid.fr/repo/regions/occitanie/region-occitanie.geojson > /data/region-occitanie.geojson
 ```
 
 Shark keeps track of inputs and outputs. In the next code block, Shark knows to wire

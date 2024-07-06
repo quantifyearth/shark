@@ -8,7 +8,7 @@ built and can be referenced as the context for future `shark-run` blocks.
 
 ## Shark Build
 
-```shark-build:gdal-env:ec610a45b8d858c2eba37fd40dd1764890828557c1c43fa84ec88c7fcdc087c1
+```shark-build:gdal-env
 ((from osgeo/gdal:ubuntu-small-3.6.3)
  (run (shell "mkdir -p /data && echo 'Something for the log!'")))
 ```
@@ -18,15 +18,16 @@ using that environment.
 
 ## Shark Run
 
-```shark-run:gdal-env:1dd3d7fdb8f1f485dd5aa0d5f383209a60aca98e67552d03a54c99be8b610eca
-$ gdalinfo --version > /data/gdal.version
+```shark-run:gdal-env:bf3b13fbfff681b941770ca0e89048afd3e185a2a5f793b63d8728347798f60b
+gdalinfo --version > /data/gdal.version
+curl -s https://france-geojson.gregoiredavid.fr/repo/regions/occitanie/region-occitanie.geojson > /data/region-occitanie.geojson
 ```
 
 Shark keeps track of inputs and outputs. In the next code block, Shark knows to wire
 up `/data/gdal.version` into the container.
 
-```shark-run:gdal-env:e02469d800253ccf95e53b583e4a91465375a4e41479a67408331ecdeedb713e
-$ cat /data/gdal.version
+```shark-run:gdal-env:a4438aaea4711bfb05d666f91bb6fa8ba69d0bcd3e4398027538b3346855273b
+cat /shark/bf3b13fbfff681b941770ca0e89048afd3e185a2a5f793b63d8728347798f60b/gdal.version
 GDAL 3.6.3, released 2023/03/07
 
 ```
@@ -38,5 +39,5 @@ this will publish to a `_shark` directory in the current working directory. Use 
 conventions to export data blobs.
 
 ```shark-publish
-/data/gdal.version
+/obuilder-zfs/result/bf3b13fbfff681b941770ca0e89048afd3e185a2a5f793b63d8728347798f60b/.zfs/snapshot/snap/rootfs/data/gdal.version
 ```

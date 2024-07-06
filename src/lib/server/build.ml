@@ -41,12 +41,7 @@ let render (Obuilder.Store_spec.Store ((module Store), store)) id =
               find_paths (fun p -> Filename.extension p = ".json") src_manifest
             in
             let geojsons =
-              List.map Uri.pct_encode geojsons
-              |> List.map (fun v ->
-                     "." / id
-                     / (Uri.with_query (Uri.of_string "serve")
-                          [ ("file", [ v ]) ]
-                       |> Uri.to_string))
+              List.map (fun g -> Fmt.str "/file/%s/%s" id g) geojsons
             in
             let jsons =
               List.map

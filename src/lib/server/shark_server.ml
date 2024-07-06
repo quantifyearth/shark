@@ -453,6 +453,12 @@ let with_file f fn =
   Lwt_unix.openfile f [ Unix.O_RDWR; Unix.O_CREAT ] 0o644 >>= fun fd ->
   Lwt.finalize (fun () -> fn (f, fd)) (fun () -> Lwt_unix.close fd)
 
+let respond_file ~fs path =
+  let mime = Magic_mime.lookup path in
+  let headers = Http.Header.add_opt_unless_exists None "content-type" mime in
+  let body = Cohttp_eio.Body.of_string Eio.Path.(load (fs / path)) in
+  Cohttp_eio.Server.respond ~status:`OK ~headers ~body ()
+
 let download ~fs (Obuilder.Store_spec.Store ((module Store), store)) id =
   match Lwt_eio.run_lwt @@ fun () -> Store.result store id with
   | None -> Cohttp_eio.Server.respond_string ~status:`Not_found ~body:"" ()
@@ -471,14 +477,17 @@ let download ~fs (Obuilder.Store_spec.Store ((module Store), store)) id =
               ~src_manifest:[ src_manifest ] ~dst_dir:"" ~to_untar:fd
               ~user:(`Unix Obuilder_spec.{ uid = 1000; gid = 1000 })
           in
-          let headers =
-            Http.Header.add_opt_unless_exists None "content-type"
-              "application/zip"
-          in
           (* Some respond_file API would be nice here *)
           let () = Lwt_eio.run_lwt tar in
-          let body = Cohttp_eio.Body.of_string Eio.Path.(load (fs / fname)) in
-          Cohttp_eio.Server.respond ~status:`OK ~headers ~body ())
+          respond_file ~fs fname)
+
+let serve_file ~fs (Obuilder.Store_spec.Store ((module Store), store)) id path =
+  match Lwt_eio.run_lwt @@ fun () -> Store.result store id with
+  | None -> Cohttp_eio.Server.respond_string ~status:`Not_found ~body:"" ()
+  | Some src_dir ->
+      let src_dir = Filename.concat src_dir "rootfs" in
+      let path = Filename.concat src_dir path in
+      respond_file ~fs path
 
 let edit_routes ~proc md_file (_conn : Cohttp_eio.Server.conn) request body =
   let open Routes in
@@ -496,6 +505,11 @@ let router ~proc ~fs ~store md_file (conn : Cohttp_eio.Server.conn) request body
       route nil (serve md_file);
       route (s "logs" / str /? nil) (serve_logs fs store);
       route (s "data" / str /? nil) (serve_data store);
+      route
+        (s "file" / str /? wildcard)
+        (fun id path ->
+          let dir = Parts.wildcard_match path in
+          serve_file ~fs store id dir);
       route (s "download" / str /? nil) (download ~fs store);
       route
         (s "files" / str /? nil)
