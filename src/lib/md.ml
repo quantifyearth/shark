@@ -152,8 +152,8 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
       in
       List.map find_files_in_store outputs
 
-let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
-    (Builder ((module Builder), builder)) (_code_block, block) =
+let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
+    ast (Builder ((module Builder), builder)) (_code_block, block) =
   let hyperblock =
     Ast.find_hyperblock_from_block ast block
     |> Option.get ~err:"No hyperblock for run block"
@@ -222,9 +222,9 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
         | Error (`Failed (id, msg)) -> Error (Some id, msg)
       in
 
-      let process_single_command acc leaf =
-        let _, prev_state = acc in
-        let inputs = Leaf.inputs leaf in
+      let process_single_command acc command_leaf =
+        let _, previous_state = acc in
+        let inputs = Leaf.inputs command_leaf in
         let input_and_hashes =
           List.map
             (fun i -> (i, List.assoc_opt (Datafile.id i) input_map))
@@ -250,7 +250,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
               | Some hash -> get_paths ~fs store hash true !ref_fd_list
               | None ->
                   let current_hash =
-                    Run_block.ExecutionState.build_hash prev_state
+                    Run_block.ExecutionState.build_hash previous_state
                   in
                   get_paths ~fs store current_hash false !ref_fd_list)
             hash_to_input_map
@@ -274,14 +274,15 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
             match s with
             | [] ->
                 Fmt.failwith "Failed to find source files for input %s of %s" i
-                  (Command.name (Leaf.command leaf))
+                  (Command.name (Leaf.command command_leaf))
             | _ -> ())
           l;
-        let inputs = Leaf.to_string_for_inputs leaf l in
+        let inputs = Leaf.to_string_for_inputs command_leaf l in
         let processed_blocks =
           Fiber.List.map
-            (Run_block.process_single_command_execution prev_state env_override
-               leaf l obuilder_command_runner)
+            (Run_block.process_single_command_execution ~previous_state
+               ~environment_override ~command_leaf ~file_subs_map:l
+               ~run_f:obuilder_command_runner)
             inputs
         in
         let results, _es = acc in
@@ -290,7 +291,7 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
           | hd :: _ -> hd
           | [] ->
               Fmt.failwith "There were no processed blocks for %s"
-                (Command.name (Leaf.command leaf))
+                (Command.name (Leaf.command command_leaf))
         in
         (processed_blocks :: results, es)
       in
@@ -298,9 +299,9 @@ let process_run_block ?(env_override = []) ~fs ~build_cache ~pool store ast
       let ids_and_output_and_cmd, _es =
         List.fold_left process_single_command
           ( [],
-            Run_block.ExecutionState.init build
-              (Fpath.to_string (Ast.default_container_path ast))
-              [] )
+            Run_block.ExecutionState.init ~build_hash:build
+              ~workdir:(Fpath.to_string (Ast.default_container_path ast))
+              ~environment:[] )
           commands
       in
       let last = List.hd ids_and_output_and_cmd in

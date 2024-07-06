@@ -1,5 +1,8 @@
 let test_initial_block () =
-  let es = Shark.Run_block.ExecutionState.init "id" "/some/path" [] in
+  let es =
+    Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
+      ~environment:[]
+  in
   Alcotest.(check string)
     "Check id" "id"
     (Shark.Run_block.ExecutionState.build_hash es);
@@ -16,18 +19,22 @@ let test_simple_change_dir () =
   let raw_command = "cd /data/arg1" in
   let command = Shark.Command.of_string raw_command in
   let inputs = [ Shark.Datafile.v 0 (Fpath.v "/data/arg1") ] in
-  let leaf =
+  let command_leaf =
     Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command inputs []
   in
 
-  let es = Shark.Run_block.ExecutionState.init "id" "/some/path" [] in
+  let es =
+    Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
+      ~environment:[]
+  in
   Alcotest.(check string)
     "Check path" "/some/path"
     (Shark.Run_block.ExecutionState.workdir es);
 
   let updated =
-    Shark.Run_block.process_single_command_execution es [] leaf [] null_runner
-      raw_command
+    Shark.Run_block.process_single_command_execution ~previous_state:es
+      ~environment_override:[] ~command_leaf ~file_subs_map:[]
+      ~run_f:null_runner raw_command
   in
   Alcotest.(check string)
     "Check id" "id"
@@ -42,16 +49,22 @@ let test_simple_change_dir () =
 let test_simple_env_udpate () =
   let raw_command = "export SOMEKEY=SOMEVALUE" in
   let command = Shark.Command.of_string raw_command in
-  let leaf = Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] [] in
+  let command_leaf =
+    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
+  in
 
-  let es = Shark.Run_block.ExecutionState.init "id" "/some/path" [] in
+  let es =
+    Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
+      ~environment:[]
+  in
   Alcotest.(check (list (pair string string)))
     "Check env" []
     (Shark.Run_block.ExecutionState.env es);
 
   let updated =
-    Shark.Run_block.process_single_command_execution es [] leaf [] null_runner
-      raw_command
+    Shark.Run_block.process_single_command_execution ~previous_state:es
+      ~environment_override:[] ~command_leaf ~file_subs_map:[]
+      ~run_f:null_runner raw_command
   in
   Alcotest.(check string)
     "Check id" "id"
@@ -67,18 +80,24 @@ let test_simple_env_udpate () =
 let test_override_env_udpate () =
   let raw_command = "export SOMEKEY=SOMEVALUE" in
   let command = Shark.Command.of_string raw_command in
-  let leaf = Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] [] in
+  let command_leaf =
+    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
+  in
 
-  let es = Shark.Run_block.ExecutionState.init "id" "/some/path" [] in
+  let es =
+    Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
+      ~environment:[]
+  in
   Alcotest.(check (list (pair string string)))
     "Check env" []
     (Shark.Run_block.ExecutionState.env es);
 
-  let env_override = [ ("SOMEKEY", "OTHERVALUE") ] in
+  let environment_override = [ ("SOMEKEY", "OTHERVALUE") ] in
 
   let updated =
-    Shark.Run_block.process_single_command_execution es env_override leaf []
-      null_runner raw_command
+    Shark.Run_block.process_single_command_execution ~previous_state:es
+      ~environment_override ~command_leaf ~file_subs_map:[] ~run_f:null_runner
+      raw_command
   in
   Alcotest.(check string)
     "Check id" "id"
@@ -94,9 +113,14 @@ let test_override_env_udpate () =
 let test_simple_command_execute () =
   let raw_command = "mycommand.exe" in
   let command = Shark.Command.of_string raw_command in
-  let leaf = Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] [] in
+  let command_leaf =
+    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
+  in
 
-  let es = Shark.Run_block.ExecutionState.init "id" "/some/path" [] in
+  let es =
+    Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
+      ~environment:[]
+  in
 
   let runner_called = ref false in
   let runner _es _l _s _b =
@@ -105,7 +129,8 @@ let test_simple_command_execute () =
   in
 
   let updated =
-    Shark.Run_block.process_single_command_execution es [] leaf [] runner
+    Shark.Run_block.process_single_command_execution ~previous_state:es
+      ~environment_override:[] ~command_leaf ~file_subs_map:[] ~run_f:runner
       raw_command
   in
   Alcotest.(check string)
@@ -127,5 +152,5 @@ let tests =
     ( "Test env update with command line override",
       `Quick,
       test_override_env_udpate );
-    ("Test a simple command exection", `Quick, test_simple_command_execute);
+    ("Test a simple command execution", `Quick, test_simple_command_execute);
   ]

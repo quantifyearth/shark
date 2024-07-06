@@ -23,21 +23,23 @@ module ExecutionState = struct
   }
   [@@deriving sexp]
 
-  let v result build_hash success workdir environment =
+  let v ~result ~build_hash ~success ~workdir ~environment =
     { result; build_hash; success; workdir; environment }
 
-  let init build_hash default_path default_env =
+  let init ~build_hash ~workdir ~environment =
     {
       result = CommandResult.v ~build_hash "";
       build_hash;
       success = true;
-      workdir = default_path;
-      environment = default_env;
+      workdir;
+      environment;
     }
 
   let change_dir e dst =
-    let res = CommandResult.v ~build_hash:e.build_hash (Fmt.str "cd %s" dst) in
-    { e with result = res; workdir = dst }
+    let result =
+      CommandResult.v ~build_hash:e.build_hash (Fmt.str "cd %s" dst)
+    in
+    { e with result; workdir = dst }
 
   let update_env e key value =
     let res =
@@ -47,6 +49,7 @@ module ExecutionState = struct
     let updated_env = (key, value) :: List.remove_assoc key e.environment in
     { e with result = res; environment = updated_env }
 
+  let command_fail e result = { e with result; success = false }
   let result e = e.result
   let build_hash e = e.build_hash
   let success e = e.success
@@ -55,9 +58,9 @@ module ExecutionState = struct
   let pp ppf t = Sexplib.Sexp.pp_hum ppf (sexp_of_t t)
 end
 
-let process_single_command_execution previous_state env_override leaf
-    file_subs_map run_f expanded_command_string =
-  let command = Leaf.command leaf in
+let process_single_command_execution ~previous_state ~environment_override
+    ~command_leaf ~file_subs_map ~run_f expanded_command_string =
+  let command = Leaf.command command_leaf in
   match Command.name command with
   | "cd" ->
       (* If a command block is a call to `cd` we treat this similarly to Docker's
@@ -77,7 +80,8 @@ let process_single_command_execution previous_state env_override leaf
             let path = Fpath.to_string (List.nth args 0) in
             match List.assoc_opt path file_subs_map with
             | None -> path
-            | Some pl -> ( match pl with [] -> path | _ -> List.nth pl 0))
+            | Some [] -> path
+            | Some pl -> List.nth pl 0)
       in
       ExecutionState.change_dir previous_state inspected_path
   | "export" ->
@@ -90,7 +94,7 @@ let process_single_command_execution previous_state env_override leaf
         | None -> Fmt.failwith "Malformed export command: %a" Command.pp command
       in
       let value =
-        match List.assoc_opt key env_override with
+        match List.assoc_opt key environment_override with
         | None -> default_value
         | Some v -> v
       in
@@ -98,15 +102,16 @@ let process_single_command_execution previous_state env_override leaf
   | _ -> (
       (* Otherwise we run a command using obuilder or such *)
       let buf = Buffer.create 128 in
-      let res = run_f previous_state leaf expanded_command_string buf in
+      let res = run_f previous_state command_leaf expanded_command_string buf in
       match res with
       | Ok id ->
           ExecutionState.v
-            (CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
-               expanded_command_string)
-            id true
-            (ExecutionState.workdir previous_state)
-            (ExecutionState.env previous_state)
+            ~result:
+              (CommandResult.v ~build_hash:id ~output:(Buffer.contents buf)
+                 expanded_command_string)
+            ~build_hash:id ~success:true
+            ~workdir:(ExecutionState.workdir previous_state)
+            ~environment:(ExecutionState.env previous_state)
       | Error (id_opt, msg) -> (
           match id_opt with
           | Some id ->
@@ -115,9 +120,7 @@ let process_single_command_execution previous_state env_override leaf
                   ~output:(msg ^ "\n" ^ Buffer.contents buf)
                   expanded_command_string
               in
-              ExecutionState.v cmd_result id false
-                (ExecutionState.workdir previous_state)
-                (ExecutionState.env previous_state)
+              ExecutionState.command_fail previous_state cmd_result
           | None ->
               let old_id = ExecutionState.build_hash previous_state in
               let cmd_result =
@@ -125,6 +128,4 @@ let process_single_command_execution previous_state env_override leaf
                   ~output:(msg ^ "\n" ^ Buffer.contents buf)
                   expanded_command_string
               in
-              ExecutionState.v cmd_result old_id false
-                (ExecutionState.workdir previous_state)
-                (ExecutionState.env previous_state)))
+              ExecutionState.command_fail previous_state cmd_result))
