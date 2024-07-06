@@ -446,6 +446,8 @@ let serve_dot proc _req body =
   let png = run_dot proc txt |> Base64.encode_string in
   respond_txt png
 
+let serve_data store id = Build.render store id
+
 let edit_routes ~proc md_file (_conn : Cohttp_eio.Server.conn) request body =
   let open Routes in
   [
@@ -461,6 +463,7 @@ let router ~proc ~fs ~store md_file (conn : Cohttp_eio.Server.conn) request body
     [
       route nil (serve md_file);
       route (s "logs" / str /? nil) (serve_logs fs store);
+      route (s "data" / str /? nil) (serve_data store);
       route
         (s "files" / str /? nil)
         (fun hash -> serve_files fs store hash None);
