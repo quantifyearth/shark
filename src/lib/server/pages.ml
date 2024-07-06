@@ -68,6 +68,67 @@ let template title body =
         .pure-g .pure-u-3-5 div {
             border-right: thin solid grey;
         }
+    :root
+    {  font-size: 100%;
+       /* font-synthesis: none; */
+       -webkit-text-size-adjust: none;
+
+      --font_headings: system-ui, sans-serif;
+      --font_body: system-ui, sans-serif;
+      --font_mono: monospace;
+
+      --font_m: 1rem; --leading_m: 1.5rem;
+      --font_s: 0.82rem;
+      --font_l: 1.125rem; --leadig_l: 1.34rem;
+      --font_xl: 1.5rem; --leading_xl: 1.8rem;
+      --font_xxl: 2.5rem; --leading_xxl: 3rem;
+
+      --font_mono_ratio:
+        /* mono / body size, difficult to find a good cross-browser value */
+           0.92;
+      --leading_mono_m: calc(var(--leading_m) * var(--font_mono_ratio));
+
+      --sp_xxs: calc(0.25 * var(--leading_m));
+      --sp_xs: calc(0.5 * var(--leading_m));
+      --sp_s: calc(0.75 * var(--leading_m));
+      --sp_m: var(--leading_m);
+      --sp_l: calc(1.125 * var(--leading_m));
+      --sp_xl: calc(1.5 * var(--leading_m));
+      --sp_xxl: calc(2.0 * var(--leading_m));
+
+      --measure_m: 73ch;
+      --page_inline_pad: var(--sp_m);
+      --page_block_pad: var(--sp_xl);
+
+      --blockquote_border: 2px solid #ACACAC;
+      --rule_border: 1px solid #CACBCE;
+      --heading_border: 1px solid #EAECEF;
+      --table_cell_pad: 0.4em;
+      --table_hover: #f5f5f5;
+      --table_sep: #efefef;
+      --table_cell_inline_pad: 0.625em;
+      --table_cell_block_pad: 0.25em;
+
+      --code_span_bg: #EFF1F3;
+      --code_span_inline_pad: 0.35ch;
+      --code_block_bg: #F6F8FA;
+      --code_block_bleed: 0.8ch;
+      --code_block_block_pad: 1ch;
+
+      --a_fg: #0969DA;
+      --a_fg_hover: #1882ff;
+      --a_visited: #8E34A5;
+      --target_color: #FFFF96;
+    }
+        
+    pre
+    { line-height: var(--leading_mono_m);
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      background-color: var(--code_block_bg);
+      padding-block: var(--code_block_block_pad);
+      padding-inline: var(--code_block_bleed);
+      margin-inline: calc(-1.0 * var(--code_block_bleed)) }
 
         #map { width: 100%; height: 800px }
     |};
@@ -173,8 +234,8 @@ module Table = struct
     | _ -> El.txt "Something went wrong rendering the tabluar data"
 end
 
-let build ?(geojsons = []) ?(jsons = []) ?(images = []) ?(tabular = []) ~title
-    ~id ~inputs ~manifest () =
+let build ?inputs ?(geojsons = []) ?(jsons = []) ?(images = []) ?(tabular = [])
+    ~title ~id ~manifest () =
   let open Htmlit in
   El.splice
     [
@@ -188,7 +249,7 @@ let build ?(geojsons = []) ?(jsons = []) ?(images = []) ?(tabular = []) ~title
                   El.em [ El.txt ("Job ID: " ^ id) ];
                   El.p
                     [
-                      pure_button "#" "Download Data";
+                      pure_button (Fmt.str "/download/%s" id) "Download Data";
                       pure_button ~disabled:true "#" "Run Shell";
                       pure_button ~disabled:true "#" "Run Notebook";
                     ];
@@ -284,56 +345,55 @@ let build ?(geojsons = []) ?(jsons = []) ?(images = []) ?(tabular = []) ~title
               divc "l-box"
                 [
                   El.h3 [ El.txt "Build Summary" ];
-                  El.p
-                    [
-                      El.txt
-                        "The following command was the last to be run in this \
-                         pipeline step.";
-                    ];
-                  El.pre
-                    [
-                      El.code [ El.txt "python -m methods.matching.find_pairs" ];
-                    ];
-                  El.h3 [ El.txt "Data Dependencies" ];
-                  El.p
-                    [
-                      El.txt
-                        {|
-              The following list is the immediate data dependencies of this build step.
-              Put another way, these build outputs were made available to this build step
-              in read-only mode. The actual code may or may not have used the data.
-            |};
-                    ];
-                  El.ul
-                    (List.map
-                       (fun i ->
-                         El.li
-                           [ El.a ~at:[ At.href "#" ] [ El.code [ El.txt i ] ] ])
-                       inputs);
-                  El.h3 [ El.txt "Build Specifications" ];
-                  El.p
-                    [
-                      El.txt
-                        "The build specification is a bit like a Dockerfile. \
-                         In this form it is very raw and specific to how the \
-                         dataflow pipeline works, but it has been copied here \
-                         for your convenience.";
-                    ];
-                  El.pre
-                    [
-                      El.code
+                  El.div
+                    (match inputs with
+                    | None -> []
+                    | Some (i : Obuilder.S.run_input) ->
+                        let base =
+                          El.div
+                            [
+                              El.p [ El.txt "Base Image" ];
+                              El.pre [ El.code [ El.txt i.base ] ];
+                            ]
+                        in
+                        let cmd =
+                          El.div
+                            [
+                              El.p [ El.txt "The command run was:" ];
+                              El.pre [ El.code [ El.txt i.cmd ] ];
+                            ]
+                        in
+                        let roms =
+                          if i.rom = [] then
+                            El.p [ El.txt "No data dependencies" ]
+                          else
+                            El.ul
+                              (List.map
+                                 (fun (r : Obuilder_spec.Rom.t) ->
+                                   match r.kind with
+                                   | `Build (hash, _dir) ->
+                                       El.li
+                                         [
+                                           El.a
+                                             ~at:
+                                               [
+                                                 At.href
+                                                   (Fmt.str "/data/%s" hash);
+                                               ]
+                                             [ El.txt (String.sub hash 0 12) ];
+                                         ])
+                                 i.rom)
+                        in
                         [
-                          El.txt
-                            {|((from alpine) (run (shell "echo 'hello world'")))|};
-                        ];
-                    ];
+                          base; cmd; El.h3 [ El.txt "Data Dependencies" ]; roms;
+                        ]);
                   El.h3 [ El.txt "Logs" ];
                   El.p
                     [
                       El.txt
                         {|Raw logs from the build of this particular pipeline step. The data here is very raw, but can help explain how the data was produced.|};
                     ];
-                  pure_button "./logs" "Raw Logs";
+                  pure_button (Fmt.str "/logs/%s" id) "Raw Logs";
                 ];
             ];
         ];

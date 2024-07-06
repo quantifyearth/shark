@@ -237,7 +237,7 @@ let custom_document_renderer _ = function
                      ~at:
                        [
                          At.v "target" "_blank";
-                         At.href (Fmt.str "/logs/%s" hash);
+                         At.href (Fmt.str "/data/%s" hash);
                          At.style "text-decoration:none;";
                        ]
                      [
@@ -248,7 +248,7 @@ let custom_document_renderer _ = function
                                "display:inline-flex;align-items:center;padding:0.2em \
                                 0.4em";
                            ]
-                         [ log; El.nbsp; El.txt (Fmt.str "Logs") ];
+                         [ log; El.nbsp; El.txt (Fmt.str "Info") ];
                      ];
                    El.a
                      ~at:
@@ -448,6 +448,38 @@ let serve_dot proc _req body =
 
 let serve_data store id = Build.render store id
 
+let with_file f fn =
+  let open Lwt.Infix in
+  Lwt_unix.openfile f [ Unix.O_RDWR; Unix.O_CREAT ] 0o644 >>= fun fd ->
+  Lwt.finalize (fun () -> fn (f, fd)) (fun () -> Lwt_unix.close fd)
+
+let download ~fs (Obuilder.Store_spec.Store ((module Store), store)) id =
+  match Lwt_eio.run_lwt @@ fun () -> Store.result store id with
+  | None -> Cohttp_eio.Server.respond_string ~status:`Not_found ~body:"" ()
+  | Some src_dir -> (
+      Logs.info (fun f -> f "Download for %s" src_dir);
+      let src_dir = Filename.concat src_dir "rootfs" in
+      match Obuilder.Manifest.generate ~exclude:[] ~src_dir "data" with
+      | Error (`Msg m) ->
+          Cohttp_eio.Server.respond_string ~status:`Bad_request
+            ~body:("Failed data zip: " ^ m) ()
+      | Ok src_manifest ->
+          let fname = Filename.temp_file "tmf-" ".zip" in
+          let tar () =
+            with_file fname @@ fun (_, fd) ->
+            Obuilder.Tar_transfer.send_files ~src_dir
+              ~src_manifest:[ src_manifest ] ~dst_dir:"" ~to_untar:fd
+              ~user:(`Unix Obuilder_spec.{ uid = 1000; gid = 1000 })
+          in
+          let headers =
+            Http.Header.add_opt_unless_exists None "content-type"
+              "application/zip"
+          in
+          (* Some respond_file API would be nice here *)
+          let () = Lwt_eio.run_lwt tar in
+          let body = Cohttp_eio.Body.of_string Eio.Path.(load (fs / fname)) in
+          Cohttp_eio.Server.respond ~status:`OK ~headers ~body ())
+
 let edit_routes ~proc md_file (_conn : Cohttp_eio.Server.conn) request body =
   let open Routes in
   [
@@ -464,6 +496,7 @@ let router ~proc ~fs ~store md_file (conn : Cohttp_eio.Server.conn) request body
       route nil (serve md_file);
       route (s "logs" / str /? nil) (serve_logs fs store);
       route (s "data" / str /? nil) (serve_data store);
+      route (s "download" / str /? nil) (download ~fs store);
       route
         (s "files" / str /? nil)
         (fun hash -> serve_files fs store hash None);

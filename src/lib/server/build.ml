@@ -10,7 +10,18 @@ let find_paths pred paths =
 
 (* Rendering Builds *)
 let render (Obuilder.Store_spec.Store ((module Store), store)) id =
-  let result = Lwt_eio.run_lwt (fun () -> Store.result store id) in
+  let result, inputs =
+    Lwt_eio.run_lwt (fun () ->
+        let open Lwt.Syntax in
+        let* result = Store.result store id in
+        let+ inputs = Store.get_meta store id ":obuilder-run-input" in
+        ( result,
+          match inputs with
+          | Some inputs ->
+              Some
+                (Obuilder.S.run_input_of_sexp (Sexplib.Sexp.of_string inputs))
+          | None -> None ))
+  in
   match result with
   | None ->
       Cohttp_eio.Server.respond_string ~status:`OK ~body:("No result for " ^ id)
@@ -79,7 +90,7 @@ let render (Obuilder.Store_spec.Store ((module Store), store)) id =
       in
       let page =
         Pages.build ~geojsons ~jsons ~images ~tabular ~manifest ~title:"Build"
-          ~id ~inputs:[] ()
+          ~id ?inputs ()
       in
       let body =
         Cohttp_eio.Body.of_string (Htmlit.El.to_string ~doctype:true page)
