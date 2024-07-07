@@ -71,7 +71,7 @@ let process_build_block ?(src_dir = ".") ?hb
           in
           Ast.Hyperblock.update_hash hb id;
           let new_code_block =
-            let info_string = Block.to_info_string block in
+            let info_string = Block.to_info_string block_with_hash in
             Cmarkit.Block.Code_block.make
               ~info_string:(info_string, Cmarkit.Meta.none)
               (Cmarkit.Block.Code_block.code code_block)
