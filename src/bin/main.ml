@@ -123,7 +123,7 @@ let edit ~proc ~net ~fs () file port =
   Cohttp_eio.Server.run socket server ~on_error:log_warning
 
 let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
-    src_dir env_override input_override =
+    src_dir environment_override input_override =
   let import_map =
     List.map
       (fun (k, v) ->
@@ -220,8 +220,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
           | Error (msg, cb) -> (cb, `Stop msg))
       | `Run ->
           let cb, _result_block, stop =
-            Shark.Md.process_run_block ~env_override ~fs ~build_cache ~pool
-              store ast obuilder (code_block, block)
+            Shark.Md.process_run_block ~environment_override ~fs ~build_cache
+              ~pool store ast obuilder (code_block, block)
           in
           (cb, stop)
   in
@@ -346,7 +346,7 @@ let secrets =
   @@ Arg.info ~doc:"Provide a secret under the form $(b,id:file)."
        ~docv:"SECRET" [ "secret" ]
 
-let env_override =
+let environment_override =
   Arg.value
   @@ Arg.(opt_all (pair ~sep:'=' string string)) []
   @@ Arg.info
@@ -384,7 +384,7 @@ let md ~fs ~net ~domain_mgr ~proc ~clock =
     Term.(
       const (md ~fs ~net ~domain_mgr ~proc ~clock)
       $ setup_log $ no_run $ store $ Obuilder.Native_sandbox.cmdliner
-      $ markdown_file $ port $ fetcher $ jobs $ src_dir $ env_override
+      $ markdown_file $ port $ fetcher $ jobs $ src_dir $ environment_override
       $ input_override)
 
 let editor ~proc ~net ~fs ~clock =

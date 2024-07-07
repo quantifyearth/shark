@@ -1,4 +1,4 @@
-(** A Leaf is an atomic exection unit the in the pipeline graph. *)
+(** A Leaf is an atomic execution unit the in the pipeline graph. *)
 
 type style = Command | Map
 type t [@@deriving sexp]

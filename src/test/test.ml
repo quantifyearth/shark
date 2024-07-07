@@ -7,4 +7,5 @@ let () =
       ("frontmatter parsing", Frontmatter.tests);
       ("AST parsing", Ast.tests);
       ("AST leaf processing", Leaf.tests);
+      ("Command execution", Run_block.tests);
     ]
