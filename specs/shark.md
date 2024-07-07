@@ -9,7 +9,7 @@ built and can be referenced as the context for future `shark-run` blocks.
 ## Shark Build
 
 ```shark-build:gdal-env
-((from osgeo/gdal:ubuntu-small-3.6.3)
+((from ghcr.io/osgeo/gdal:ubuntu-small-3.6.3@sha256:bfa7915a3ef942b4f6f61223ee57eadbb469d6fb4a5fbf562286d1473f15eaab)
  (run (shell "mkdir -p /data && echo 'Something for the log!'")))
 ```
 
