@@ -133,8 +133,48 @@ let test_simple_command_execute () =
       ~environment_override:[] ~command_leaf ~file_subs_map:[] ~run_f:runner
       raw_command
   in
+  Alcotest.(check bool)
+    "Check success" true
+    (Shark.Run_block.ExecutionState.success updated);
   Alcotest.(check string)
     "Check id" "otherid"
+    (Shark.Run_block.ExecutionState.build_hash updated);
+  Alcotest.(check string)
+    "Check path" "/some/path"
+    (Shark.Run_block.ExecutionState.workdir updated);
+  Alcotest.(check (list (pair string string)))
+    "Check env" []
+    (Shark.Run_block.ExecutionState.env updated);
+  Alcotest.(check bool) "check runner was called" true !runner_called
+
+let test_simple_failed_command_execute () =
+  let raw_command = "mycommand.exe" in
+  let command = Shark.Command.of_string raw_command in
+  let command_leaf =
+    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
+  in
+
+  let es =
+    Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
+      ~environment:[]
+  in
+
+  let runner_called = ref false in
+  let runner _es _l _s _b =
+    runner_called := true;
+    Error (None, "error")
+  in
+
+  let updated =
+    Shark.Run_block.process_single_command_execution ~previous_state:es
+      ~environment_override:[] ~command_leaf ~file_subs_map:[] ~run_f:runner
+      raw_command
+  in
+  Alcotest.(check bool)
+    "Check success" false
+    (Shark.Run_block.ExecutionState.success updated);
+  Alcotest.(check string)
+    "Check id" "id"
     (Shark.Run_block.ExecutionState.build_hash updated);
   Alcotest.(check string)
     "Check path" "/some/path"
@@ -153,4 +193,7 @@ let tests =
       `Quick,
       test_override_env_udpate );
     ("Test a simple command execution", `Quick, test_simple_command_execute);
+    ( "Test a failed command execution",
+      `Quick,
+      test_simple_failed_command_execute );
   ]
