@@ -62,8 +62,11 @@ let render_import_to_dot ppf command =
   Format.fprintf ppf "\n"
 
 let datafile_to_dot ppf datafile =
-  Format.fprintf ppf "\tn%d[shape=\"cylinder\",label=\"%s\"];\n"
-    (Datafile.id datafile)
+  let shape =
+    match Datafile.is_dir datafile with true -> "tab" | false -> "note"
+  in
+  Format.fprintf ppf "\tn%d[shape=\"%s\",label=\"%s\"];\n"
+    (Datafile.id datafile) shape
     (Fpath.to_string (Datafile.path datafile))
 
 let render_ast_to_dot ppf hyperblocks : unit =
