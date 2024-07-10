@@ -16,7 +16,7 @@ We can then do the build and copy the result to a shark friendly location:
 
 ```shark-run:golang
 $ cd /data/littlejohn
-$ mkdir /data/build/
+$ mkdir -p /data/build/
 $ GOPATH=/data/build go install
 $ ls -laR /data/build
 ```

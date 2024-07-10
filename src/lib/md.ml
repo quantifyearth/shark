@@ -223,77 +223,80 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
       in
 
       let process_single_command acc command_leaf =
-        let _, previous_state = acc in
-        let inputs = Leaf.inputs command_leaf in
-        let input_and_hashes =
-          List.map
-            (fun i -> (i, List.assoc_opt (Datafile.id i) input_map))
-              (* match List.assoc_opt (Datafile.id i) input_map with
-                 | None -> Some (i, (Run_block.ExecutionState.build_hash prev_state))
-                 | Some hash -> Some (i, hash)) *)
-            inputs
-        in
-        let hash_to_input_map =
-          List.fold_left
-            (fun a (df, hash) ->
-              match List.assoc_opt hash a with
-              | None -> (hash, ref [ df ]) :: a
-              | Some l ->
-                  l := df :: !l;
-                  a)
-            [] input_and_hashes
-        in
-        let paths =
-          List.map
-            (fun (hash_opt, ref_fd_list) ->
-              match hash_opt with
-              | Some hash -> get_paths ~fs store hash true !ref_fd_list
-              | None ->
-                  let current_hash =
-                    Run_block.ExecutionState.build_hash previous_state
+        let previous_results, previous_state = acc in
+        match Run_block.ExecutionState.success previous_state with
+        | false -> acc
+        | true ->
+            let inputs = Leaf.inputs command_leaf in
+            let input_and_hashes =
+              List.map
+                (fun i -> (i, List.assoc_opt (Datafile.id i) input_map))
+                  (* match List.assoc_opt (Datafile.id i) input_map with
+                     | None -> Some (i, (Run_block.ExecutionState.build_hash prev_state))
+                     | Some hash -> Some (i, hash)) *)
+                inputs
+            in
+            let hash_to_input_map =
+              List.fold_left
+                (fun a (df, hash) ->
+                  match List.assoc_opt hash a with
+                  | None -> (hash, ref [ df ]) :: a
+                  | Some l ->
+                      l := df :: !l;
+                      a)
+                [] input_and_hashes
+            in
+            let paths =
+              List.map
+                (fun (hash_opt, ref_fd_list) ->
+                  match hash_opt with
+                  | Some hash -> get_paths ~fs store hash true !ref_fd_list
+                  | None ->
+                      let current_hash =
+                        Run_block.ExecutionState.build_hash previous_state
+                      in
+                      get_paths ~fs store current_hash false !ref_fd_list)
+                hash_to_input_map
+            in
+            let l =
+              List.fold_left
+                (fun a v ->
+                  let s =
+                    List.map
+                      (fun (arg_path, targets) ->
+                        ( Fpath.to_string (Datafile.fullpath arg_path),
+                          List.map Fpath.to_string targets ))
+                      v
                   in
-                  get_paths ~fs store current_hash false !ref_fd_list)
-            hash_to_input_map
-        in
-        let l =
-          List.fold_left
-            (fun a v ->
-              let s =
-                List.map
-                  (fun (arg_path, targets) ->
-                    ( Fpath.to_string (Datafile.fullpath arg_path),
-                      List.map Fpath.to_string targets ))
-                  v
-              in
-              s @ a)
-            [] paths
-        in
-        (* Sanity check whether we found the matching inputs *)
-        List.iter
-          (fun (i, s) ->
-            match s with
-            | [] ->
-                Fmt.failwith "Failed to find source files for input %s of %s" i
-                  (Command.name (Leaf.command command_leaf))
-            | _ -> ())
-          l;
-        let inputs = Leaf.to_string_for_inputs command_leaf l in
-        let processed_blocks =
-          Fiber.List.map
-            (Run_block.process_single_command_execution ~previous_state
-               ~environment_override ~command_leaf ~file_subs_map:l
-               ~run_f:obuilder_command_runner)
-            inputs
-        in
-        let results, _es = acc in
-        let es =
-          match processed_blocks with
-          | hd :: _ -> hd
-          | [] ->
-              Fmt.failwith "There were no processed blocks for %s"
-                (Command.name (Leaf.command command_leaf))
-        in
-        (processed_blocks :: results, es)
+                  s @ a)
+                [] paths
+            in
+            (* Sanity check whether we found the matching inputs *)
+            List.iter
+              (fun (i, s) ->
+                match s with
+                | [] ->
+                    Fmt.failwith
+                      "Failed to find source files for input %s of %s" i
+                      (Command.name (Leaf.command command_leaf))
+                | _ -> ())
+              l;
+            let inputs = Leaf.to_string_for_inputs command_leaf l in
+            let processed_blocks =
+              Fiber.List.map
+                (Run_block.process_single_command_execution ~previous_state
+                   ~environment_override ~command_leaf ~file_subs_map:l
+                   ~run_f:obuilder_command_runner)
+                inputs
+            in
+            let es =
+              match processed_blocks with
+              | hd :: _ -> hd
+              | [] ->
+                  Fmt.failwith "There were no processed blocks for %s"
+                    (Command.name (Leaf.command command_leaf))
+            in
+            (processed_blocks :: previous_results, es)
       in
 
       let ids_and_output_and_cmd, _es =

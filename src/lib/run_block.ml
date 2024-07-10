@@ -42,12 +42,12 @@ module ExecutionState = struct
     { e with result; workdir = dst }
 
   let update_env e key value =
-    let res =
+    let result =
       CommandResult.v ~build_hash:e.build_hash
         (Fmt.str "export %s=%s" key value)
     in
     let updated_env = (key, value) :: List.remove_assoc key e.environment in
-    { e with result = res; environment = updated_env }
+    { e with result; environment = updated_env }
 
   let command_fail e result = { e with result; success = false }
   let result e = e.result
