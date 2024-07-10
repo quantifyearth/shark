@@ -43,7 +43,18 @@ case "$1" in
 		else
 			echo "Successfully Failed"
 		fi
-        
+
+        for d in `find specs -name "succeed*.md"`; do
+            sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md $d --store=rsync:/rsync --rsync-mode=hardlink --verbose
+        done
+        for d in `find specs -name "fail*.md"`; do
+            if sudo "$GITHUB_WORKSPACE/_build/install/default/bin/shark" md $d --store=rsync:/rsync --rsync-mode=hardlink --verbose; then
+                exit 1
+            else
+                echo "Successfully Failed"
+            fi
+        done
+
 		sudo rm -rf /rsync
         ;;
     *)
