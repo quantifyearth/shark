@@ -222,10 +222,17 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
         | Error (`Failed (id, msg)) -> Error (Some id, msg)
       in
 
-      let process_single_command acc command_leaf =
-        let previous_results, previous_state = acc in
+      let process_single_command command_history command_leaf =
+        let previous_states = List.hd command_history in
+        let previous_state =
+          match previous_states with
+          | hd :: _ -> hd
+          | [] ->
+              Fmt.failwith "There were no processed blocks for %s"
+                (Command.name (Leaf.command command_leaf))
+        in
         match Run_block.ExecutionState.success previous_state with
-        | false -> acc
+        | false -> command_history
         | true ->
             let inputs = Leaf.inputs command_leaf in
             let input_and_hashes =
@@ -289,23 +296,16 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
                    ~run_f:obuilder_command_runner)
                 inputs
             in
-            let es =
-              match processed_blocks with
-              | hd :: _ -> hd
-              | [] ->
-                  Fmt.failwith "There were no processed blocks for %s"
-                    (Command.name (Leaf.command command_leaf))
-            in
-            (processed_blocks :: previous_results, es)
+            processed_blocks :: command_history
       in
 
-      let ids_and_output_and_cmd, _es =
-        List.fold_left process_single_command
-          ( [],
-            Run_block.ExecutionState.init ~build_hash:build
-              ~workdir:(Fpath.to_string (Ast.default_container_path ast))
-              ~environment:[] )
-          commands
+      let initial_state =
+        Run_block.ExecutionState.init ~build_hash:build
+          ~workdir:(Fpath.to_string (Ast.default_container_path ast))
+          ~environment:[]
+      in
+      let ids_and_output_and_cmd =
+        List.fold_left process_single_command [ [ initial_state ] ] commands
       in
       let last = List.hd ids_and_output_and_cmd in
       let id = Run_block.ExecutionState.build_hash (List.hd last) in
