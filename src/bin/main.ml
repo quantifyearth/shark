@@ -159,12 +159,8 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
           (* First we translate the import statement to a build block *)
           let uid = string_of_int !import_uid in
           incr import_uid;
-          let (cb, blk), src_dir_opt =
-            Shark.Md.translate_import_block ~uid block
-          in
-          let import_src_dir =
-            match src_dir_opt with Some x -> x | None -> src_dir
-          in
+          let cb, blk = Shark.Md.translate_import_block ~uid block in
+          let import_src_dir = "/" in
           (* Now we build the block *)
           (* Import block digests need to be mapped to this build hash *)
           let hb =

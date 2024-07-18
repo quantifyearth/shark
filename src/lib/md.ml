@@ -408,7 +408,7 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
 let translate_import_block ~uid block =
   match Block.kind block with
   | `Import ->
-      let spec, src_dir_opt = Block.import_spec block in
+      let spec = Block.import_spec block in
       Logs.info (fun f -> f "import spec: %a" Obuilder_spec.pp spec);
       let body = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
       let alias = Fmt.str "import-statement-%s" uid in
@@ -418,5 +418,5 @@ let translate_import_block ~uid block =
           ~info_string:(Fmt.str "shark-build:%s" alias, Cmarkit.Meta.none)
           (Cmarkit.Block_line.list_of_string body)
       in
-      ((code_block, block), src_dir_opt)
+      (code_block, block)
   | _ -> failwith "Expected Import Block"

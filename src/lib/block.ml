@@ -156,49 +156,45 @@ let digest : t -> string = function
 
 let import_spec b =
   let open Obuilder_spec in
-  (* TODO: Support multi-import statements *)
-  let url, target_path = imports b |> List.hd in
-  match Uri.scheme url with
-  | None | Some "file" ->
-      (* Choose better image, just need tools to import? *)
-      let fpath =
-        match Fpath.of_string (Uri.path url) with
-        | Ok p -> p
-        | Error (`Msg msg) ->
-            Fmt.failwith "Failed to parse path %s: %s" (Uri.path url) msg
-      in
-      let src_dir, path = Fpath.split_base fpath in
-      let src_dir = Fpath.rem_empty_seg src_dir in
-      ( stage ~from:(`Image "alpine")
-          [
-            (* shell [ "/bin/sh"; "-c" ]; *)
-            (* run "mkdir -p %s" (Fpath.to_string (Fpath.parent path)); *)
-            copy [ Fpath.to_string path ] ~dst:(Fpath.to_string target_path);
-          ],
-        Some (Fpath.to_string src_dir) )
-  | Some "http" | Some "https" -> (
-      let src_path = Uri.path url in
-      match String.cut ~rev:true ~sep:"." src_path with
-      | Some (_, "git") ->
-          (* Choose better image, just need tools to import? *)
-          ( stage ~from:(`Image "alpine")
-              [
-                shell [ "/bin/sh"; "-c" ];
-                run ~network:[ "host" ] "apk add --no-cache git";
-                run ~network:[ "host" ] "mkdir -p /data && git clone %s %s"
-                  (Uri.to_string url)
-                  (Fpath.to_string target_path);
-              ],
-            None )
-      | _ ->
-          (* Choose better image, just need tools to import? *)
-          ( stage ~from:(`Image "alpine")
-              [
-                shell [ "/bin/sh"; "-c" ];
-                run ~network:[ "host" ] "apk add --no-cache curl";
-                run ~network:[ "host" ] "mkdir -p /data && curl -O %s %s"
-                  (Fpath.to_string target_path)
-                  (Uri.to_string url);
-              ],
-            None ))
-  | Some scheme -> Fmt.failwith "Unsupported import scheme %s" scheme
+  let commands =
+    imports b
+    |> List.concat_map (fun (url, target_path) ->
+           match Uri.scheme url with
+           | None | Some "file" ->
+               let fpath =
+                 match Fpath.of_string (Uri.path url) with
+                 | Ok p -> p
+                 | Error (`Msg msg) ->
+                     Fmt.failwith "Failed to parse path %s: %s" (Uri.path url)
+                       msg
+               in
+               let relpath =
+                 Option.get (Fpath.relativize ~root:(Fpath.v "/") fpath)
+               in
+               [
+                 copy
+                   [ Fpath.to_string relpath ]
+                   ~dst:(Fpath.to_string target_path);
+               ]
+           | Some "http" | Some "https" -> (
+               let src_path = Uri.path url in
+               match String.cut ~rev:true ~sep:"." src_path with
+               | Some (_, "git") ->
+                   [
+                     shell [ "/bin/sh"; "-c" ];
+                     run ~network:[ "host" ] "apk add --no-cache git";
+                     run ~network:[ "host" ] "mkdir -p /data && git clone %s %s"
+                       (Uri.to_string url)
+                       (Fpath.to_string target_path);
+                   ]
+               | _ ->
+                   [
+                     shell [ "/bin/sh"; "-c" ];
+                     run ~network:[ "host" ] "apk add --no-cache curl";
+                     run ~network:[ "host" ] "mkdir -p /data && curl -O %s %s"
+                       (Fpath.to_string target_path)
+                       (Uri.to_string url);
+                   ])
+           | Some scheme -> Fmt.failwith "Unsupported import scheme %s" scheme)
+  in
+  stage ~from:(`Image "alpine") commands

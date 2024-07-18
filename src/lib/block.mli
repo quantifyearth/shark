@@ -73,5 +73,5 @@ val imports : t -> (Uri.t * Fpath.t) list
 
 val digest : t -> string
 
-val import_spec : t -> Obuilder_spec.t * string option
+val import_spec : t -> Obuilder_spec.t
 (** For a shark-import block generate the spec to execute to enact the import. *)
