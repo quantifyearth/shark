@@ -55,12 +55,11 @@ let test_git_import_block () =
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec, src_dir = Shark.Block.import_spec block in
+  let spec = Shark.Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
-    (Astring.String.is_infix ~affix:"git clone" specbody);
-  Alcotest.(check (option string)) "No src_dir change" None src_dir
+    (Astring.String.is_infix ~affix:"git clone" specbody)
 
 let test_http_import_block () =
   let body = "https://example.com/data/something.csv /data/src.csv" in
@@ -75,12 +74,11 @@ let test_http_import_block () =
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec, src_dir = Shark.Block.import_spec block in
+  let spec = Shark.Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
-    (Astring.String.is_infix ~affix:"curl -O" specbody);
-  Alcotest.(check (option string)) "No src_dir change" None src_dir
+    (Astring.String.is_infix ~affix:"curl -O" specbody)
 
 let test_file_import_block_no_schema () =
   let body = "/home/michael/file.csv /data/file.csv" in
@@ -93,13 +91,11 @@ let test_file_import_block_no_schema () =
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec, src_dir = Shark.Block.import_spec block in
+  let spec = Shark.Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
-    (Astring.String.is_infix ~affix:"copy" specbody);
-  Alcotest.(check (option string))
-    "Src_dir change" (Some "/home/michael") src_dir
+    (Astring.String.is_infix ~affix:"copy" specbody)
 
 let test_file_import_block_with_schema () =
   let body = "file:///home/michael/file.csv /data/file.csv" in
@@ -112,13 +108,11 @@ let test_file_import_block_with_schema () =
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec, src_dir = Shark.Block.import_spec block in
+  let spec = Shark.Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
-    (Astring.String.is_infix ~affix:"copy" specbody);
-  Alcotest.(check (option string))
-    "Src_dir change" (Some "/home/michael") src_dir
+    (Astring.String.is_infix ~affix:"copy" specbody)
 
 let tests =
   [
