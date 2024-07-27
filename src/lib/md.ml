@@ -61,15 +61,15 @@ let process_build_block ?(src_dir = ".") ?hb
           (cb, block, `Stop (Printf.sprintf "%s: %s" id msg))
       | Ok id ->
           let block_with_hash = Block.with_hash block id in
-          (* Update hyperblock hash *)
+          (* Update astblock hash *)
           let hb =
             match hb with
             | Some hb -> hb
             | None ->
-                Ast.find_hyperblock_from_block ast block
-                |> Option.get ~err:"No hyperblock for build block"
+                Ast.find_ast_block_from_shark_block ast block
+                |> Option.get ~err:"No astblock for build block"
           in
-          Ast.Hyperblock.update_hash hb id;
+          Ast.Astblock.update_hash hb id;
           let new_code_block =
             let info_string = Block.to_info_string block_with_hash in
             Cmarkit.Block.Code_block.make
@@ -89,7 +89,7 @@ let input_hashes ast block =
   (* The input Datafile has the wildcard flag, which won't be set on the
      output flag, so we need to swap them over *)
   let input_map =
-    Ast.Hyperblock.io
+    Ast.Astblock.io
       (Option.get ~err:"No block ID for input map"
          (Ast.block_by_id ast block_id))
     |> fst
@@ -97,9 +97,9 @@ let input_hashes ast block =
   in
 
   let map_to_inputs hb =
-    let hashes = Ast.Hyperblock.hashes hb in
+    let hashes = Ast.Astblock.hashes hb in
     let inputs =
-      Ast.Hyperblock.io hb |> snd |> List.map Datafile.id
+      Ast.Astblock.io hb |> snd |> List.map Datafile.id
       |> List.filter_map (fun o -> List.assoc_opt o input_map)
     in
     List.map (fun h -> (h, inputs)) hashes
@@ -154,14 +154,15 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
 
 let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
     ast (Builder ((module Builder), builder)) (_code_block, block) =
-  let hyperblock =
-    Ast.find_hyperblock_from_block ast block
-    |> Option.get ~err:"No hyperblock for run block"
-  in
   match Block.kind block with
   | `Run ->
-      let commands = Ast.Hyperblock.commands hyperblock in
+      let astblock =
+        Ast.find_ast_block_from_shark_block ast block
+        |> Option.get ~err:"No astblock for run block"
+      in
+
       let inputs = input_hashes ast block in
+
       let build = Build_cache.find_exn build_cache (Block.alias block) in
 
       let rom =
@@ -172,14 +173,27 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
           inputs
       in
 
-      let input_map =
-        List.map
-          (fun (hash, dfs) -> List.map (fun df -> (Datafile.id df, hash)) dfs)
-          inputs
+      let expanded_inputs =
+        List.map (fun (hash, dfs) -> List.map (fun df -> (hash, df)) dfs) inputs
         |> List.concat
       in
 
-      let spec_for_command previous_state leaf cmdstr =
+      let rec loop acc input_list =
+        match input_list with
+        | [] -> acc
+        | (hash, df) :: tl ->
+            let df_id = Datafile.id df in
+            let updated_acc =
+              match List.assoc_opt df_id acc with
+              | None -> (df_id, (df, [ hash ])) :: acc
+              | Some (df, hashes) ->
+                  (df_id, (df, hash :: hashes)) :: List.remove_assoc df_id acc
+            in
+            loop updated_acc tl
+      in
+      let input_map = loop [] expanded_inputs in
+
+      let spec_for_command previous_state leaf merges cmdstr =
         let target_dirs l =
           List.map
             (fun d ->
@@ -194,6 +208,22 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
             (Leaf.outputs l)
         in
 
+        let build_file_joins l =
+          List.map
+            (fun (target_dir, hashes) ->
+              let open Obuilder_spec in
+              let source_dir = String.sub ~start:5 target_dir in
+              [ run "mkdir -p %s" target_dir ]
+              @ List.map
+                  (fun hash ->
+                    run ~rom "cp -rs /shark/%s/%s/* %s" hash
+                      (String.Sub.to_string source_dir)
+                      target_dir)
+                  hashes)
+            l
+          |> List.concat
+        in
+
         let build_hash = Run_block.ExecutionState.build_hash previous_state
         and workdir = Run_block.ExecutionState.workdir previous_state
         and environment = Run_block.ExecutionState.env previous_state in
@@ -203,12 +233,14 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
              Obuilder_spec.workdir workdir;
            ]
           @ List.map (fun (k, v) -> Obuilder_spec.env k v) environment
-          @ target_dirs leaf
+          @ target_dirs leaf @ build_file_joins merges
           @ [ Obuilder_spec.run ~network:[ "host" ] ~rom "%s" cmdstr ])
       in
 
-      let obuilder_command_runner previous_state leaf cmdstr buf =
-        let spec = spec_for_command previous_state leaf cmdstr in
+      (* This is a function passed to the block executure that abstracts out
+          the obuilder world *)
+      let obuilder_command_runner previous_state leaf file_joins cmdstr buf =
+        let spec = spec_for_command previous_state leaf file_joins cmdstr in
         Eio.Pool.use pool @@ fun () ->
         let log = log `Run buf in
         let context = Obuilder.Context.v ~log ~src_dir:"." () in
@@ -222,6 +254,8 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
         | Error (`Failed (id, msg)) -> Error (Some id, msg)
       in
 
+      (* This is an internal function that runs one command - it's
+         internal so as to pick up all the caller params, which is a bit cheaty *)
       let process_single_command command_history command_leaf =
         let previous_states = List.hd command_history in
         let previous_state =
@@ -234,37 +268,75 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
         match Run_block.ExecutionState.success previous_state with
         | false -> command_history
         | true ->
+            (* Generate the input mapping that links the file paths for the command's arguments with
+               any previously generated inputs. This needs to handle the following cases:
+               * Simple one-to-one file replacement
+               * Simple one-to-one directory name replacement
+               * If a directory is consumed with an * indicating a wildcard we need to gneerate a set
+               list of replacements for expansion to a list of parallel execituting versions of the command
+               * If the directory is an input and has been wildcarded then we need to
+            *)
             let inputs = Leaf.inputs command_leaf in
             let input_and_hashes =
               List.map
-                (fun i -> (i, List.assoc_opt (Datafile.id i) input_map))
-                  (* match List.assoc_opt (Datafile.id i) input_map with
-                     | None -> Some (i, (Run_block.ExecutionState.build_hash prev_state))
-                     | Some hash -> Some (i, hash)) *)
+                (fun i ->
+                  match List.assoc_opt (Datafile.id i) input_map with
+                  | None -> (i, None)
+                  | Some (_, hashes) -> (i, Some hashes))
                 inputs
             in
-            let hash_to_input_map =
+            let hashes_to_input_map =
               List.fold_left
-                (fun a (df, hash) ->
-                  match List.assoc_opt hash a with
-                  | None -> (hash, ref [ df ]) :: a
+                (fun a (df, hashes) ->
+                  match List.assoc_opt hashes a with
+                  | None -> (hashes, ref [ df ]) :: a
                   | Some l ->
                       l := df :: !l;
                       a)
                 [] input_and_hashes
             in
+
+            let current_hash =
+              Run_block.ExecutionState.build_hash previous_state
+            in
             let paths =
               List.map
-                (fun (hash_opt, ref_fd_list) ->
-                  match hash_opt with
-                  | Some hash -> get_paths ~fs store hash true !ref_fd_list
-                  | None ->
-                      let current_hash =
-                        Run_block.ExecutionState.build_hash previous_state
-                      in
-                      get_paths ~fs store current_hash false !ref_fd_list)
-                hash_to_input_map
+                (fun (hashes_opt, ref_df_list) ->
+                  let df_list = !ref_df_list in
+                  match hashes_opt with
+                  | Some hashes -> (
+                      (* If we have multiple hashes, then this was a wildcard. In theory we could need to consume
+                         this as a whild card, but we don't handle that case yet, so we fail if that's so *)
+                      match List.length hashes with
+                      | 1 -> get_paths ~fs store (List.hd hashes) true df_list
+                      | _ -> (
+                          match List.length df_list with
+                          | 1 -> get_paths ~fs store current_hash false df_list
+                          | _ ->
+                              Fmt.failwith
+                                "We have multiple hashes mapped to multiple or \
+                                 no files"))
+                  | None -> get_paths ~fs store current_hash false df_list)
+                hashes_to_input_map
             in
+
+            let merges =
+              List.filter_map
+                (fun (hashes_opt, ref_df_list) ->
+                  match hashes_opt with
+                  | None -> None
+                  | Some hashes -> (
+                      match hashes with
+                      | [] | [ _ ] -> None
+                      | _ -> (
+                          match !ref_df_list with
+                          | [ df ] ->
+                              Some
+                                (Fpath.to_string (Datafile.fullpath df), hashes)
+                          | _ -> None)))
+                hashes_to_input_map
+            in
+
             let l =
               List.fold_left
                 (fun a v ->
@@ -278,22 +350,44 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
                   s @ a)
                 [] paths
             in
+
+            (* Filter out any maps that are now merges *)
+            let l =
+              List.filter_map
+                (fun (p, targets) ->
+                  match targets with
+                  | [] -> (
+                      match List.assoc_opt p merges with
+                      | Some _ -> None
+                      | None -> Some (p, targets))
+                  | _ -> Some (p, targets))
+                l
+            in
+
             (* Sanity check whether we found the matching inputs *)
             List.iter
               (fun (i, s) ->
                 match s with
-                | [] ->
-                    Fmt.failwith
-                      "Failed to find source files for input %s of %s" i
-                      (Command.name (Leaf.command command_leaf))
+                | [] -> (
+                    (* If this is a join, then it'll not be here *)
+                    match List.assoc_opt i merges with
+                    | Some _ -> ()
+                    | None ->
+                        Fmt.failwith
+                          "Failed to find source files for input %s of %s" i
+                          (Command.name (Leaf.command command_leaf)))
                 | _ -> ())
               l;
+
+            (* For each input(s) generate the actual command(s) with the paths
+               from the disk images mapped into place *)
             let inputs = Leaf.to_string_for_inputs command_leaf l in
+
             let processed_blocks =
               Fiber.List.map
                 (Run_block.process_single_command_execution ~previous_state
-                   ~environment_override ~command_leaf ~file_subs_map:l
-                   ~run_f:obuilder_command_runner)
+                   ~environment_override ~command_leaf ~file_joins:merges
+                   ~file_subs_map:l ~run_f:obuilder_command_runner)
                 inputs
             in
             processed_blocks :: command_history
@@ -304,6 +398,7 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
           ~workdir:(Fpath.to_string (Ast.default_container_path ast))
           ~environment:[]
       in
+      let commands = Ast.Astblock.commands astblock in
       let ids_and_output_and_cmd =
         List.fold_left process_single_command [ [ initial_state ] ] commands
       in
@@ -330,7 +425,7 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
 
       List.iter
         (fun es ->
-          Ast.Hyperblock.update_hash hyperblock
+          Ast.Astblock.update_hash astblock
             (Run_block.ExecutionState.build_hash es))
         last;
       let block = Block.with_hash block id in

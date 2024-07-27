@@ -69,28 +69,28 @@ let datafile_to_dot ppf datafile =
     (Datafile.id datafile) shape
     (Fpath.to_string (Datafile.path datafile))
 
-let render_ast_to_dot ppf hyperblocks : unit =
+let render_ast_to_dot ppf astblocks : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
     (fun hb ->
-      let commands = Ast.Hyperblock.commands hb in
+      let commands = Ast.Astblock.commands hb in
       List.concat_map
         (fun command ->
           let inputs = Leaf.inputs command and outputs = Leaf.outputs command in
           List.concat [ inputs; outputs ])
         commands)
-    hyperblocks
+    astblocks
   |> DatafileSet.of_list
   |> DatafileSet.iter (datafile_to_dot ppf);
 
   List.iteri
     (fun i hb ->
-      let kind = Block.kind (Ast.Hyperblock.block hb) in
+      let kind = Block.kind (Ast.Astblock.block hb) in
       let name, style =
         match kind with
         | `Publish -> ("Publish", "bold")
-        | _ -> (Ast.Hyperblock.context hb, "solid")
-      and commands = Ast.Hyperblock.commands hb in
+        | _ -> (Ast.Astblock.context hb, "solid")
+      and commands = Ast.Astblock.commands hb in
       Format.fprintf ppf "subgraph \"cluster_%d\" {\n" i;
       Format.fprintf ppf "\tstyle = %s\n" style;
       Format.fprintf ppf "\tlabel = \"%s\"\n" name;
@@ -115,7 +115,7 @@ let render_ast_to_dot ppf hyperblocks : unit =
       List.iter (renderer ppf) filtered_commands;
 
       Format.fprintf ppf "}\n")
-    hyperblocks;
+    astblocks;
   Format.fprintf ppf "}\n"
 
 let render ~template_markdown =

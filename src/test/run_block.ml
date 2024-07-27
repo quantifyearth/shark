@@ -13,7 +13,7 @@ let test_initial_block () =
     "Check env" []
     (Shark.Run_block.ExecutionState.env es)
 
-let null_runner _es _l _s _b = Ok "null runner"
+let null_runner _es _l _m _s _b = Ok "null runner"
 
 let test_simple_change_dir () =
   let raw_command = "cd /data/arg1" in
@@ -33,7 +33,7 @@ let test_simple_change_dir () =
 
   let updated =
     Shark.Run_block.process_single_command_execution ~previous_state:es
-      ~environment_override:[] ~command_leaf ~file_subs_map:[]
+      ~environment_override:[] ~command_leaf ~file_joins:[] ~file_subs_map:[]
       ~run_f:null_runner raw_command
   in
   Alcotest.(check string)
@@ -63,7 +63,7 @@ let test_simple_env_udpate () =
 
   let updated =
     Shark.Run_block.process_single_command_execution ~previous_state:es
-      ~environment_override:[] ~command_leaf ~file_subs_map:[]
+      ~environment_override:[] ~command_leaf ~file_joins:[] ~file_subs_map:[]
       ~run_f:null_runner raw_command
   in
   Alcotest.(check string)
@@ -96,8 +96,8 @@ let test_override_env_udpate () =
 
   let updated =
     Shark.Run_block.process_single_command_execution ~previous_state:es
-      ~environment_override ~command_leaf ~file_subs_map:[] ~run_f:null_runner
-      raw_command
+      ~environment_override ~command_leaf ~file_joins:[] ~file_subs_map:[]
+      ~run_f:null_runner raw_command
   in
   Alcotest.(check string)
     "Check id" "id"
@@ -123,15 +123,15 @@ let test_simple_command_execute () =
   in
 
   let runner_called = ref false in
-  let runner _es _l _s _b =
+  let runner _es _l _m _s _b =
     runner_called := true;
     Ok "otherid"
   in
 
   let updated =
     Shark.Run_block.process_single_command_execution ~previous_state:es
-      ~environment_override:[] ~command_leaf ~file_subs_map:[] ~run_f:runner
-      raw_command
+      ~environment_override:[] ~command_leaf ~file_joins:[] ~file_subs_map:[]
+      ~run_f:runner raw_command
   in
   Alcotest.(check bool)
     "Check success" true
@@ -160,15 +160,15 @@ let test_simple_failed_command_execute () =
   in
 
   let runner_called = ref false in
-  let runner _es _l _s _b =
+  let runner _es _l _m _s _b =
     runner_called := true;
     Error (None, "error")
   in
 
   let updated =
     Shark.Run_block.process_single_command_execution ~previous_state:es
-      ~environment_override:[] ~command_leaf ~file_subs_map:[] ~run_f:runner
-      raw_command
+      ~environment_override:[] ~command_leaf ~file_joins:[] ~file_subs_map:[]
+      ~run_f:runner raw_command
   in
   Alcotest.(check bool)
     "Check success" false

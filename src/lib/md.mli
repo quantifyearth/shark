@@ -24,7 +24,7 @@ type builder =
 
 val process_build_block :
   ?src_dir:string ->
-  ?hb:Ast.Hyperblock.t ->
+  ?hb:Ast.Astblock.t ->
   builder ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->
@@ -49,5 +49,5 @@ val process_publish_block :
 
 val translate_import_block :
   uid:string -> Block.t -> Cmarkit.Block.Code_block.t * Block.t
-(** [translate_import_block uid block] will generate an expanded code block that contains a shark-build spec that 
+(** [translate_import_block uid block] will generate an expanded code block that contains a shark-build spec that
     carries out the actual import when evaluated. *)

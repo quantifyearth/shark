@@ -59,7 +59,7 @@ module ExecutionState = struct
 end
 
 let process_single_command_execution ~previous_state ~environment_override
-    ~command_leaf ~file_subs_map ~run_f expanded_command_string =
+    ~command_leaf ~file_joins ~file_subs_map ~run_f expanded_command_string =
   let command = Leaf.command command_leaf in
   match Command.name command with
   | "cd" ->
@@ -102,7 +102,9 @@ let process_single_command_execution ~previous_state ~environment_override
   | _ -> (
       (* Otherwise we run a command using obuilder or such *)
       let buf = Buffer.create 128 in
-      let res = run_f previous_state command_leaf expanded_command_string buf in
+      let res =
+        run_f previous_state command_leaf file_joins expanded_command_string buf
+      in
       match res with
       | Ok id ->
           ExecutionState.v
