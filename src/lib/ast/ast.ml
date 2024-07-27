@@ -357,6 +357,7 @@ let find_dependencies ast id =
       let from, too = edge in
       if too = id then Some from else None)
     ast.edges
+  |> List.sort_uniq (fun a b -> a - b) (* remove duplicates if we take more than one output from a block *)
   |> List.map (fun id -> List.assoc id ast.nodes)
 
 let default_container_path ast = Frontmatter.default_container_path ast.metadata
