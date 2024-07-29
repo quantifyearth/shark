@@ -37,10 +37,12 @@ val process_single_command_execution :
   previous_state:ExecutionState.t ->
   environment_override:(string * string) list ->
   command_leaf:Leaf.t ->
+  file_joins:(string * string list) list ->
   file_subs_map:(string * string list) list ->
   run_f:
     (ExecutionState.t ->
     Leaf.t ->
+    (string * string list) list ->
     string ->
     Buffer.t ->
     (string, string option * string) result) ->

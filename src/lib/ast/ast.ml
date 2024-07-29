@@ -2,7 +2,7 @@ open Astring
 open Sexplib.Conv
 module DatafileSet = Set.Make (Datafile)
 
-module Hyperblock = struct
+module Astblock = struct
   type t = {
     hash : string list ref;
     context : string;
@@ -37,7 +37,7 @@ module Hyperblock = struct
 end
 
 module Section = struct
-  type t = { name : string; blocks : Hyperblock.t list }
+  type t = { name : string; blocks : Astblock.t list }
 
   let v name blocks = { name; blocks }
   let name s = s.name
@@ -47,7 +47,7 @@ end
 type block_id = int [@@deriving sexp]
 
 type t = {
-  nodes : (block_id * Hyperblock.t) list;
+  nodes : (block_id * Astblock.t) list;
   edges : (block_id * block_id) list;
   metadata : Frontmatter.t;
 }
@@ -205,7 +205,7 @@ let pass_one_on_list inputs section_list =
                 pass_one_process_commands_loop counter superblock.commands
                   input_map
               in
-              (updated_map, Hyperblock.v name superblock.block leaves))
+              (updated_map, Astblock.v name superblock.block leaves))
             input_map superblocks
         in
         (updated_map, Section.v name processed_section))
@@ -304,34 +304,34 @@ let of_sharkdown ?concrete_paths template_markdown =
   let pass1 = pass_one_on_list [] expanded_sections in
 
   (* Now I have the global graph implicitly, turn the list into a graph of blocks *)
-  let all_hyperblocks = List.concat_map Section.blocks pass1 in
-  let id_all_hyperblocks = List.mapi (fun i h -> (i, h)) all_hyperblocks in
+  let all_astblocks = List.concat_map Section.blocks pass1 in
+  let id_all_astblocks = List.mapi (fun i h -> (i, h)) all_astblocks in
 
   (* All files will have one writer and zero or more readers *)
   let writers =
     List.concat
       (List.map
          (fun (hbid, h) ->
-           let _, outputs = Hyperblock.io h in
+           let _, outputs = Astblock.io h in
            List.map (fun o -> (Datafile.id o, (o, hbid))) outputs)
-         id_all_hyperblocks)
+         id_all_astblocks)
   in
 
   let edges =
     List.concat
       (List.map
          (fun (hbid, h) ->
-           let inputs, _ = Hyperblock.io h in
+           let inputs, _ = Astblock.io h in
            List.filter_map
              (fun i ->
                match List.assoc_opt (Datafile.id i) writers with
                | None -> None
                | Some (_, writerid) -> Some (writerid, hbid))
              inputs)
-         id_all_hyperblocks)
+         id_all_astblocks)
   in
 
-  ({ nodes = id_all_hyperblocks; edges; metadata }, expanded_markdown)
+  ({ nodes = id_all_astblocks; edges; metadata }, expanded_markdown)
 
 let find_id_of_block ast ib =
   let d = Block.digest ib in
@@ -340,14 +340,14 @@ let find_id_of_block ast ib =
     | [] -> None
     | hd :: tl ->
         let id, hb = hd in
-        let b = Hyperblock.block hb in
+        let b = Astblock.block hb in
         if Block.digest b = d then Some id else loop tl
   in
   loop ast.nodes
 
 let block_by_id ast id = List.assoc_opt id ast.nodes
 
-let find_hyperblock_from_block ast block =
+let find_ast_block_from_shark_block ast block =
   let id = find_id_of_block ast block in
   Option.bind id (block_by_id ast)
 
@@ -357,6 +357,8 @@ let find_dependencies ast id =
       let from, too = edge in
       if too = id then Some from else None)
     ast.edges
+  |> List.sort_uniq (fun a b -> a - b)
+     (* remove duplicates if we take more than one output from a block *)
   |> List.map (fun id -> List.assoc id ast.nodes)
 
 let default_container_path ast = Frontmatter.default_container_path ast.metadata

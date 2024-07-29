@@ -164,12 +164,11 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
           (* Now we build the block *)
           (* Import block digests need to be mapped to this build hash *)
           let hb =
-            match Shark.Ast.find_hyperblock_from_block ast block with
+            match Shark.Ast.find_ast_block_from_shark_block ast block with
             | Some hb -> hb
             | None ->
                 Logs.info (fun f ->
-                    f "Failed to find the hyperblock for %a" Shark.Block.pp
-                      block);
+                    f "Failed to find the astblock for %a" Shark.Block.pp block);
                 failwith "Block not found"
           in
           let res =
