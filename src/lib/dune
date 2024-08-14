@@ -1,8 +1,6 @@
-(include_subdirs unqualified)
-
 (library
  (name shark)
  (public_name shark)
- (libraries eio str yaml lwt_eio cmarkit obuilder fpath uri)
+ (libraries eio str yaml lwt_eio cmarkit obuilder fpath uri shark-ast)
  (preprocess
   (pps ppx_sexp_conv)))

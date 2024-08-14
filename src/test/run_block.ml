@@ -1,3 +1,5 @@
+open Shark_ast
+
 let test_initial_block () =
   let es =
     Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
@@ -17,11 +19,9 @@ let null_runner _es _l _m _s _b = Ok "null runner"
 
 let test_simple_change_dir () =
   let raw_command = "cd /data/arg1" in
-  let command = Shark.Command.of_string raw_command in
-  let inputs = [ Shark.Datafile.v 0 (Fpath.v "/data/arg1") ] in
-  let command_leaf =
-    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command inputs []
-  in
+  let command = Command.of_string raw_command in
+  let inputs = [ Datafile.v 0 (Fpath.v "/data/arg1") ] in
+  let command_leaf = Leaf.v 42 (Option.get command) Leaf.Command inputs [] in
 
   let es =
     Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
@@ -48,10 +48,8 @@ let test_simple_change_dir () =
 
 let test_simple_env_udpate () =
   let raw_command = "export SOMEKEY=SOMEVALUE" in
-  let command = Shark.Command.of_string raw_command in
-  let command_leaf =
-    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
-  in
+  let command = Command.of_string raw_command in
+  let command_leaf = Leaf.v 42 (Option.get command) Leaf.Command [] [] in
 
   let es =
     Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
@@ -79,10 +77,8 @@ let test_simple_env_udpate () =
 
 let test_override_env_udpate () =
   let raw_command = "export SOMEKEY=SOMEVALUE" in
-  let command = Shark.Command.of_string raw_command in
-  let command_leaf =
-    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
-  in
+  let command = Command.of_string raw_command in
+  let command_leaf = Leaf.v 42 (Option.get command) Leaf.Command [] [] in
 
   let es =
     Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
@@ -112,10 +108,8 @@ let test_override_env_udpate () =
 
 let test_simple_command_execute () =
   let raw_command = "mycommand.exe" in
-  let command = Shark.Command.of_string raw_command in
-  let command_leaf =
-    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
-  in
+  let command = Command.of_string raw_command in
+  let command_leaf = Leaf.v 42 (Option.get command) Leaf.Command [] [] in
 
   let es =
     Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
@@ -149,10 +143,8 @@ let test_simple_command_execute () =
 
 let test_simple_failed_command_execute () =
   let raw_command = "mycommand.exe" in
-  let command = Shark.Command.of_string raw_command in
-  let command_leaf =
-    Shark.Leaf.v 42 (Option.get command) Shark.Leaf.Command [] []
-  in
+  let command = Command.of_string raw_command in
+  let command_leaf = Leaf.v 42 (Option.get command) Leaf.Command [] [] in
 
   let es =
     Shark.Run_block.ExecutionState.init ~build_hash:"id" ~workdir:"/some/path"
