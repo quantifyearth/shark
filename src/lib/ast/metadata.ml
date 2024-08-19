@@ -32,7 +32,7 @@ let string_list_of_yaml = function
 
 let dict_of_yaml = function `O assoc -> assoc | _ -> []
 
-let of_toplevel_yaml = function
+let of_yaml = function
   | `O assoc ->
       let vars =
         List.filter_map
@@ -58,11 +58,10 @@ let of_toplevel_yaml = function
             | _ -> None)
           raw_inputs
       in
-      { variables = vars; inputs }
-  | `Null -> empty
-  | _ -> failwith "Malformed variables in markdown frontmatter"
+      Ok { variables = vars; inputs }
+  | `Null -> Ok empty
+  | _ -> Error (`Msg "Malformed variables in markdown frontmatter")
 
-let of_string s = String.trim s |> Yaml.of_string |> Result.map of_toplevel_yaml
 let variables t = t.variables
 let inputs t = List.map (fun (_, v) -> v) t.inputs
 let input_map t = t.inputs

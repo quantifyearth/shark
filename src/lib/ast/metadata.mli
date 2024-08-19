@@ -3,7 +3,7 @@ type t [@@deriving sexp]
 val pp : t Fmt.t
 val v : (string * string list) list -> (string * Fpath.t) list -> t
 val empty : t
-val of_string : string -> (t, [ `Msg of string ]) result
+val of_yaml : Yaml.value -> (t, [ `Msg of string ]) result
 val variables : t -> (string * string list) list
 
 (* These are specific to shark rather than general frontmatter *)

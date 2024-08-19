@@ -1,3 +1,5 @@
+open Shark_ast
+
 let ( / ) = Filename.concat
 
 module Sandbox = Obuilder.Native_sandbox
@@ -142,7 +144,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
   let file_path = Eio.Path.(fs / file) in
   let template_markdown = Eio.Path.load file_path in
   let ast, markdown =
-    Shark.Ast.of_sharkdown ~concrete_paths:import_map template_markdown
+    Shark.Md_to_ast.of_sharkdown ~concrete_paths:import_map template_markdown
   in
 
   let doc = Cmarkit.Doc.of_string markdown in
@@ -154,7 +156,7 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
   let f ~build_cache code_block block =
     if no_run then (code_block, `Continue)
     else
-      match Shark.Block.kind block with
+      match Ast.Block.Raw.kind block with
       | `Import -> (
           (* First we translate the import statement to a build block *)
           let uid = string_of_int !import_uid in
@@ -164,11 +166,12 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
           (* Now we build the block *)
           (* Import block digests need to be mapped to this build hash *)
           let hb =
-            match Shark.Ast.find_ast_block_from_shark_block ast block with
+            match Ast.find_block_from_raw_block ast block with
             | Some hb -> hb
             | None ->
                 Logs.info (fun f ->
-                    f "Failed to find the astblock for %a" Shark.Block.pp block);
+                    f "Failed to find the astblock for %a" Ast.Block.Raw.pp
+                      block);
                 failwith "Block not found"
           in
           let res =
@@ -181,9 +184,9 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
             | `Stop msg -> Error (msg, cb)
             | `Continue ->
                 Ok
-                  ( Shark.Block.alias blk,
+                  ( Ast.Block.Raw.alias blk,
                     option_get ~msg:"Block hash for import"
-                      (Shark.Block.hash blk),
+                      (Ast.Block.Raw.hash blk),
                     cb )
           in
           match res with
@@ -205,9 +208,9 @@ let md ~fs ~net ~domain_mgr ~proc () no_run store conf file port fetcher jobs
             | `Stop msg -> Error (msg, cb)
             | `Continue ->
                 Ok
-                  ( Shark.Block.alias blk,
+                  ( Ast.Block.Raw.alias blk,
                     option_get ~msg:"Block hash for build"
-                      (Shark.Block.hash blk),
+                      (Ast.Block.Raw.hash blk),
                     cb )
           in
           match res with
@@ -266,8 +269,8 @@ let dot ~fs () file =
   run_eventloop @@ fun () ->
   let file_path = Eio.Path.(fs / file) in
   let template_markdown = Eio.Path.load file_path in
-  let s = Shark.Dotrenderer.render ~template_markdown in
-  Format.pp_print_string Format.std_formatter s;
+  let ast, _ = Shark.Md_to_ast.of_sharkdown template_markdown in
+  Shark_ast.Ast.pp_dot Fmt.stdout ast;
   Ok ()
 
 open Cmdliner

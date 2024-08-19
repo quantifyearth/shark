@@ -1,15 +1,17 @@
-let block = Alcotest.of_pp Shark.Block.pp
+module Block = Shark_ast.Ast.Block.Raw
+
+let block = Alcotest.of_pp Block.pp
 
 let test_shark_build_block_no_hash () =
   let build_string_no_hash = "shark-build:gdal-env" in
-  let expect = Shark.Block.build_or_run ~alias:"gdal-env" ~body:"" `Build in
+  let expect = Block.build_or_run ~alias:"gdal-env" ~body:"" `Build in
   let test = Shark.Block.of_info_string ~body:"" build_string_no_hash in
   Alcotest.(check (option block)) "same block" (Some expect) test
 
 let test_shark_build_with_hash_block () =
   let build_string_hash = "shark-build:gdal-env:abcdefg" in
   let expect =
-    Shark.Block.build_or_run ~hash:"abcdefg" ~alias:"gdal-env" ~body:"" `Build
+    Block.build_or_run ~hash:"abcdefg" ~alias:"gdal-env" ~body:"" `Build
   in
   let test = Shark.Block.of_info_string ~body:"" build_string_hash in
   Alcotest.(check (option block)) "same block hash" (Some expect) test
@@ -22,40 +24,40 @@ let test_shark_empty_block () =
 let test_shark_run_block_no_hash () =
   let info = "shark-run:somecontainer" in
   let body = "$ python3 something.py\n$ python3 other.py" in
-  let expect = Shark.Block.build_or_run ~alias:"somecontainer" ~body `Run in
+  let expect = Block.build_or_run ~alias:"somecontainer" ~body `Run in
   let test = Shark.Block.of_info_string ~body info in
   Alcotest.(check (option block)) "same block" (Some expect) test
 
 let test_shark_run_multiple_commands () =
   let body = "$ python3 something.py\n$ python3 other.py" in
-  let block = Shark.Block.build_or_run ~alias:"somecontainer" ~body `Run in
+  let block = Block.build_or_run ~alias:"somecontainer" ~body `Run in
   let expect = [ "$ python3 something.py"; "$ python3 other.py" ] in
-  let test = Shark.Block.command_list block in
+  let test = Block.command_list block in
   Alcotest.(check (list string)) "Some commands" expect test
 
 let test_shark_run_multiline_command () =
   let body = "$ python3 something.py\\\n\targ1 arg2" in
-  let block = Shark.Block.build_or_run ~alias:"somecontainer" ~body `Run in
+  let block = Block.build_or_run ~alias:"somecontainer" ~body `Run in
   let expect = [ "$ python3 something.py arg1 arg2" ] in
-  let test = Shark.Block.command_list block in
+  let test = Block.command_list block in
   Alcotest.(check (list string)) "Single command" expect test
 
 let test_git_import_block () =
   let body =
     "https://example.com/quantifyearth/littlejohn.git /data/littlejohn"
   in
-  let block = Shark.Block.import body in
+  let block = Block.import body in
   let expected =
     [ ("https://example.com/quantifyearth/littlejohn.git", "/data/littlejohn") ]
   in
   let test =
     List.map
       (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
-      (Shark.Block.imports block)
+      (Block.imports block)
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec = Shark.Block.import_spec block in
+  let spec = Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
@@ -63,18 +65,18 @@ let test_git_import_block () =
 
 let test_http_import_block () =
   let body = "https://example.com/data/something.csv /data/src.csv" in
-  let block = Shark.Block.import body in
+  let block = Block.import body in
   let expected =
     [ ("https://example.com/data/something.csv", "/data/src.csv") ]
   in
   let test =
     List.map
       (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
-      (Shark.Block.imports block)
+      (Block.imports block)
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec = Shark.Block.import_spec block in
+  let spec = Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
@@ -82,16 +84,16 @@ let test_http_import_block () =
 
 let test_file_import_block_no_schema () =
   let body = "/home/michael/file.csv /data/file.csv" in
-  let block = Shark.Block.import body in
+  let block = Block.import body in
   let expected = [ ("/home/michael/file.csv", "/data/file.csv") ] in
   let test =
     List.map
       (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
-      (Shark.Block.imports block)
+      (Block.imports block)
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec = Shark.Block.import_spec block in
+  let spec = Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true
@@ -99,16 +101,16 @@ let test_file_import_block_no_schema () =
 
 let test_file_import_block_with_schema () =
   let body = "file:///home/michael/file.csv /data/file.csv" in
-  let block = Shark.Block.import body in
+  let block = Block.import body in
   let expected = [ ("file:///home/michael/file.csv", "/data/file.csv") ] in
   let test =
     List.map
       (fun (u, p) -> (Uri.to_string u, Fpath.to_string p))
-      (Shark.Block.imports block)
+      (Block.imports block)
   in
   Alcotest.(check (list (pair string string))) "Single import" expected test;
 
-  let spec = Shark.Block.import_spec block in
+  let spec = Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
     "Found git command" true

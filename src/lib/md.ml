@@ -1,6 +1,7 @@
 open Astring
 open Eio
 open Import
+open Shark_ast
 
 let ( / ) = Eio.Path.( / )
 
@@ -43,10 +44,11 @@ let log kind buffer tag msg =
 
 let process_build_block ?(src_dir = ".") ?hb
     (Builder ((module Builder), builder)) ast (code_block, block) =
-  match Block.kind block with
+  match Ast.Block.Raw.kind block with
   | `Build -> (
       let spec =
-        Obuilder_spec.t_of_sexp (Sexplib.Sexp.of_string (Block.body block))
+        Obuilder_spec.t_of_sexp
+          (Sexplib.Sexp.of_string (Ast.Block.Raw.body block))
       in
       let buf = Buffer.create 128 in
       let log = log `Build buf in
@@ -60,16 +62,16 @@ let process_build_block ?(src_dir = ".") ?hb
           let cb = Cmarkit.Block.Code_block.make ~info_string body in
           (cb, block, `Stop (Printf.sprintf "%s: %s" id msg))
       | Ok id ->
-          let block_with_hash = Block.with_hash block id in
+          let block_with_hash = Ast.Block.Raw.with_hash block id in
           (* Update astblock hash *)
           let hb =
             match hb with
             | Some hb -> hb
             | None ->
-                Ast.find_ast_block_from_shark_block ast block
+                Ast.find_block_from_raw_block ast block
                 |> Option.get ~err:"No astblock for build block"
           in
-          Ast.Astblock.update_hash hb id;
+          Ast.Block.update_hash hb id;
           let new_code_block =
             let info_string = Block.to_info_string block_with_hash in
             Cmarkit.Block.Code_block.make
@@ -89,7 +91,7 @@ let input_hashes ast block =
   (* The input Datafile has the wildcard flag, which won't be set on the
      output flag, so we need to swap them over *)
   let input_map =
-    Ast.Astblock.io
+    Ast.Block.io
       (Option.get ~err:"No block ID for input map"
          (Ast.block_by_id ast block_id))
     |> fst
@@ -97,9 +99,9 @@ let input_hashes ast block =
   in
 
   let map_to_inputs hb =
-    let hashes = Ast.Astblock.hashes hb in
+    let hashes = Ast.Block.hashes hb in
     let inputs =
-      Ast.Astblock.io hb |> snd |> List.map Datafile.id
+      Ast.Block.io hb |> snd |> List.map Datafile.id
       |> List.filter_map (fun o -> List.assoc_opt o input_map)
     in
     List.map (fun h -> (h, inputs)) hashes
@@ -154,16 +156,18 @@ let get_paths ~fs (Obuilder.Store_spec.Store ((module Store), store)) hash
 
 let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
     ast (Builder ((module Builder), builder)) (_code_block, block) =
-  match Block.kind block with
+  match Ast.Block.Raw.kind block with
   | `Run ->
       let astblock =
-        Ast.find_ast_block_from_shark_block ast block
+        Ast.find_block_from_raw_block ast block
         |> Option.get ~err:"No astblock for run block"
       in
 
       let inputs = input_hashes ast block in
 
-      let build = Build_cache.find_exn build_cache (Block.alias block) in
+      let build =
+        Build_cache.find_exn build_cache (Ast.Block.Raw.alias block)
+      in
 
       let rom =
         List.map
@@ -398,7 +402,7 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
           ~workdir:(Fpath.to_string (Ast.default_container_path ast))
           ~environment:[]
       in
-      let commands = Ast.Astblock.commands astblock in
+      let commands = Ast.Block.commands astblock in
       let ids_and_output_and_cmd =
         List.fold_left process_single_command [ [ initial_state ] ] commands
       in
@@ -425,10 +429,10 @@ let process_run_block ?(environment_override = []) ~fs ~build_cache ~pool store
 
       List.iter
         (fun es ->
-          Ast.Astblock.update_hash astblock
+          Ast.Block.update_hash astblock
             (Run_block.ExecutionState.build_hash es))
         last;
-      let block = Block.with_hash block id in
+      let block = Ast.Block.Raw.with_hash block id in
       let info_string = (Block.to_info_string block, Cmarkit.Meta.none) in
       (* TODO: We should be able to continue procressing other blocks if only one fails
          here, but I would like to restructure the code to support this better and have
@@ -461,7 +465,7 @@ let copy ?chown ~src ~dst () =
 
 let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
     ast (_code_block, block) =
-  match Block.kind block with
+  match Ast.Block.Raw.kind block with
   | `Publish ->
       let inputs = input_hashes ast block in
       Logs.info (fun f -> f "Inputs for publish");
@@ -501,13 +505,13 @@ let process_publish_block (Obuilder.Store_spec.Store ((module Store), store))
   | _ -> failwith "Expected Publish Block"
 
 let translate_import_block ~uid block =
-  match Block.kind block with
+  match Ast.Block.Raw.kind block with
   | `Import ->
-      let spec = Block.import_spec block in
+      let spec = Ast.Block.Raw.import_spec block in
       Logs.info (fun f -> f "import spec: %a" Obuilder_spec.pp spec);
       let body = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
       let alias = Fmt.str "import-statement-%s" uid in
-      let block = Block.build_or_run ~alias ~body `Build in
+      let block = Ast.Block.Raw.build_or_run ~alias ~body `Build in
       let code_block =
         Cmarkit.Block.Code_block.make
           ~info_string:(Fmt.str "shark-build:%s" alias, Cmarkit.Meta.none)

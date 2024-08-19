@@ -1,3 +1,5 @@
+open Shark_ast
+
 module CommandResult : sig
   type t [@@deriving sexp]
 

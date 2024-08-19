@@ -1,3 +1,4 @@
+open Shark_ast
 (** {1 Sharkdown Utilities}
 
 This modules contains utilities for working with Sharkdown (markdown) files.
@@ -24,7 +25,7 @@ type builder =
 
 val process_build_block :
   ?src_dir:string ->
-  ?hb:Ast.Astblock.t ->
+  ?hb:Ast.Block.t ->
   builder ->
   Ast.t ->
   Cmarkit.Block.Code_block.t * Block.t ->

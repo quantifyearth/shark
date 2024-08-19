@@ -73,7 +73,7 @@ let render_ast_to_dot ppf astblocks : unit =
   Format.fprintf ppf "digraph{\n";
   List.concat_map
     (fun hb ->
-      let commands = Ast.Astblock.commands hb in
+      let commands = Block.commands hb in
       List.concat_map
         (fun command ->
           let inputs = Leaf.inputs command and outputs = Leaf.outputs command in
@@ -85,12 +85,12 @@ let render_ast_to_dot ppf astblocks : unit =
 
   List.iteri
     (fun i hb ->
-      let kind = Block.kind (Ast.Astblock.block hb) in
+      let kind = Block.Raw.kind (Block.raw hb) in
       let name, style =
         match kind with
         | `Publish -> ("Publish", "bold")
-        | _ -> (Ast.Astblock.context hb, "solid")
-      and commands = Ast.Astblock.commands hb in
+        | _ -> (Block.context hb, "solid")
+      and commands = Block.commands hb in
       Format.fprintf ppf "subgraph \"cluster_%d\" {\n" i;
       Format.fprintf ppf "\tstyle = %s\n" style;
       Format.fprintf ppf "\tlabel = \"%s\"\n" name;
@@ -118,8 +118,4 @@ let render_ast_to_dot ppf astblocks : unit =
     astblocks;
   Format.fprintf ppf "}\n"
 
-let render ~template_markdown =
-  Ast.of_sharkdown template_markdown
-  |> fst |> Ast.to_list
-  |> render_ast_to_dot Format.str_formatter;
-  Format.flush_str_formatter ()
+let render ppf ast = Ast.to_list ast |> render_ast_to_dot ppf

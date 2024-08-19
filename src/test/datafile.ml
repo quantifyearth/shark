@@ -1,50 +1,47 @@
+open Shark_ast
+
 let test_basic_file_path () =
   let testcase = Fpath.v "/data/test/example.tif" in
-  let test = Shark.Datafile.v 42 testcase in
-  Alcotest.(check int) "Same id" 42 (Shark.Datafile.id test);
+  let test = Datafile.v 42 testcase in
+  Alcotest.(check int) "Same id" 42 (Datafile.id test);
   Alcotest.(check string)
     "Same path" (Fpath.to_string testcase)
-    (Fpath.to_string (Shark.Datafile.path test));
+    (Fpath.to_string (Datafile.path test));
   Alcotest.(check string)
     "Same full path" (Fpath.to_string testcase)
-    (Fpath.to_string (Shark.Datafile.fullpath test));
-  Alcotest.(check (option string))
-    "No subpath" None
-    (Shark.Datafile.subpath test);
-  Alcotest.(check bool) "Isn't wildcard" false (Shark.Datafile.is_wildcard test);
-  Alcotest.(check bool) "Isn't dir" false (Shark.Datafile.is_dir test)
+    (Fpath.to_string (Datafile.fullpath test));
+  Alcotest.(check (option string)) "No subpath" None (Datafile.subpath test);
+  Alcotest.(check bool) "Isn't wildcard" false (Datafile.is_wildcard test);
+  Alcotest.(check bool) "Isn't dir" false (Datafile.is_dir test)
 
 let test_sub_path () =
   let testcase = Fpath.v "/data/test/" in
-  let test = Shark.Datafile.v ~subpath:"example.tif" 42 testcase in
-  Alcotest.(check int) "Same id" 42 (Shark.Datafile.id test);
+  let test = Datafile.v ~subpath:"example.tif" 42 testcase in
+  Alcotest.(check int) "Same id" 42 (Datafile.id test);
   Alcotest.(check string)
     "Same path" (Fpath.to_string testcase)
-    (Fpath.to_string (Shark.Datafile.path test));
+    (Fpath.to_string (Datafile.path test));
   Alcotest.(check string)
     "Same full path" "/data/test/example.tif"
-    (Fpath.to_string (Shark.Datafile.fullpath test));
+    (Fpath.to_string (Datafile.fullpath test));
   Alcotest.(check (option string))
-    "No subpath" (Some "example.tif")
-    (Shark.Datafile.subpath test);
-  Alcotest.(check bool) "Isn't wildcard" false (Shark.Datafile.is_wildcard test);
-  Alcotest.(check bool) "Is dir" true (Shark.Datafile.is_dir test)
+    "No subpath" (Some "example.tif") (Datafile.subpath test);
+  Alcotest.(check bool) "Isn't wildcard" false (Datafile.is_wildcard test);
+  Alcotest.(check bool) "Is dir" true (Datafile.is_dir test)
 
 let test_basic_dir_with_wildcard () =
   let testcase = Fpath.v "/data/test/" in
-  let test = Shark.Datafile.v ~subpath:"*" 42 testcase in
-  Alcotest.(check int) "Same id" 42 (Shark.Datafile.id test);
+  let test = Datafile.v ~subpath:"*" 42 testcase in
+  Alcotest.(check int) "Same id" 42 (Datafile.id test);
   Alcotest.(check string)
     "Same path" (Fpath.to_string testcase)
-    (Fpath.to_string (Shark.Datafile.path test));
+    (Fpath.to_string (Datafile.path test));
   Alcotest.(check string)
     "Same full path" (Fpath.to_string testcase)
-    (Fpath.to_string (Shark.Datafile.fullpath test));
-  Alcotest.(check (option string))
-    "No subpath" None
-    (Shark.Datafile.subpath test);
-  Alcotest.(check bool) "Is wildcard" true (Shark.Datafile.is_wildcard test);
-  Alcotest.(check bool) "Is dir" true (Shark.Datafile.is_dir test)
+    (Fpath.to_string (Datafile.fullpath test));
+  Alcotest.(check (option string)) "No subpath" None (Datafile.subpath test);
+  Alcotest.(check bool) "Is wildcard" true (Datafile.is_wildcard test);
+  Alcotest.(check bool) "Is dir" true (Datafile.is_dir test)
 
 let tests =
   [

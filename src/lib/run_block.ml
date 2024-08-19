@@ -1,6 +1,7 @@
 open Astring
 open Sexplib.Conv
 open Import
+open Shark_ast
 
 module CommandResult = struct
   type t = { build_hash : string; output : string option; command : string }

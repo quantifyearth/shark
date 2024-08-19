@@ -1,6 +1,7 @@
 (executable
  (name main)
  (public_name shark)
+ (package shark)
  (libraries
   eio_posix
   shark
