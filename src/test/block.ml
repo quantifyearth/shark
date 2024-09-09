@@ -79,8 +79,8 @@ let test_http_import_block () =
   let spec = Block.import_spec block in
   let specbody = Sexplib.Sexp.to_string_hum (Obuilder_spec.sexp_of_t spec) in
   Alcotest.(check bool)
-    "Found git command" true
-    (Astring.String.is_infix ~affix:"curl -O" specbody)
+    "Found curl command" true
+    (Astring.String.is_infix ~affix:"curl -o" specbody)
 
 let test_file_import_block_no_schema () =
   let body = "/home/michael/file.csv /data/file.csv" in
