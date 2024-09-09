@@ -20,7 +20,18 @@ let v ?subpath id path =
     | None -> false
     | Some p -> Char.equal p.[String.length p - 1] '*'
   in
-  if wildcard then { id; path; subpath = None; wildcard = true }
+  let cleaned_subpath =
+    match subpath with
+    | None -> None
+    | Some p -> (
+        if wildcard == false then Some p
+        else
+          let newsub =
+            String.Sub.to_string (String.sub ~stop:(String.length p - 1) p)
+          in
+          match newsub with "" -> None | s -> Some s)
+  in
+  if wildcard then { id; path; subpath = cleaned_subpath; wildcard = true }
   else { id; path; subpath; wildcard = false }
 
 let id d = d.id
