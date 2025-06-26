@@ -3,7 +3,7 @@ RUN  sudo apt-get update \
   && sudo apt-get install -y runc
 RUN sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam
 USER 1000:1000
-RUN cd ~/opam-repository && git pull origin -q master && git reset --hard 3505e93828fa76861e82d09d92a37a6272d46da5 && opam update
+RUN cd ~/opam-repository && git pull origin -q master && git reset --hard eb1c31096c67d2f03b97ad71332ed5f2fc15f762 && opam update
 COPY --chown=opam shark.opam shark-ast.opam /src/
 WORKDIR /src
 RUN opam pin . -yn
