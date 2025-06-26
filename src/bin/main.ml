@@ -426,7 +426,7 @@ let cmds env =
 
 let () =
   Eio_posix.run @@ fun env ->
-  Mirage_crypto_rng_eio.run (module Mirage_crypto_rng.Fortuna) env @@ fun () ->
+  Mirage_crypto_rng_unix.use_default ();
   let doc = "a command-line interface for Shark" in
   let info = Cmd.info ~doc "shark" in
   exit (Cmd.eval_result @@ Cmd.group info (cmds env))
