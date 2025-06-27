@@ -137,7 +137,7 @@ module Raw = struct
                      [
                        shell [ "/bin/sh"; "-c" ];
                        run ~network:[ "host" ] "apk add --no-cache curl";
-                       run ~network:[ "host" ] "mkdir -p /data && curl -O %s %s"
+                       run ~network:[ "host" ] "mkdir -p /data && curl -o %s %s"
                          (Fpath.to_string target_path)
                          (Uri.to_string url);
                      ])

@@ -30,8 +30,16 @@ let to_string_for_inputs l (file_subs_map : (string * string list) list) :
         let updated a =
           List.map
             (fun s ->
-              let regexp = Str.regexp (template_path ^ "\\*?") in
-              Str.global_replace regexp s a)
+              let f = Result.get_ok (Fpath.of_string s) in
+              let basename = Fpath.basename f in
+
+              let src_regexp = Str.regexp (template_path ^ "\\*?") in
+              let dst_regexp = Str.regexp "\\+" in
+
+              let p1 = Str.global_replace src_regexp s a in
+              match p1 == s with
+              | true -> p1
+              | false -> Str.global_replace dst_regexp basename p1)
             substitutions
         in
         let u = List.map updated acc |> List.concat in
